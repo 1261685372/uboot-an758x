@@ -11,3 +11,15 @@ config PHY_AIROHA_EN8811
 	help
 	  AIROHA EN8811H supported.
 	  AIROHA AN8811HB supported.
+
+config PHY_AIROHA_EN8811_EMBEDDED_FW
+	bool "Airoha EN8811H embedded MD32 firmware"
+	depends on PHY_AIROHA_EN8811
+	help
+	  Build the EN8811H MD32 firmware (v1.0.4, version 23051209) into
+	  the U-Boot image instead of loading it at runtime through the
+	  'en8811h_load_firmware' environment script.
+
+	  This is needed on boards where no firmware source is available
+	  in U-Boot, e.g. when entering Web recovery through the EN8811H
+	  port.

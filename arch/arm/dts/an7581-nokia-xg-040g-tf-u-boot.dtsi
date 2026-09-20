@@ -28,3 +28,19 @@ status_led: &{/leds/led-power-green} {
 	status = "okay";
 	bootph-all;
 };
+
+&gdm4 {
+	status = "okay";
+	bootph-all;
+	phy-mode = "2500base-x";
+	phy-handle = <&en8811h_phy>;
+};
+
+&switch {
+	mdio {
+		en8811h_phy: ethernet-phy@15 {
+			compatible = "ethernet-phy-id03a2.a411";
+			reg = <15>;
+		};
+	};
+};

@@ -7,6 +7,23 @@ status_led: &{/leds/led-2} {
 
 #include "an758x-status-led-u-boot.dtsi"
 
+&gdm3 {
+	status = "okay";
+	bootph-all;
+	phy-mode = "2500base-x";
+	phy-handle = <&en8811h_phy>;
+};
+
+&mdio_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	en8811h_phy: ethernet-phy@15 {
+		compatible = "ethernet-phy-id03a2.a411";
+		reg = <15>;
+	};
+};
+
 &recovery_layout {
 	bosa {
 		volume-name = "bosa";

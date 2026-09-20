@@ -701,18 +701,21 @@ config ENV_SECT_SIZE
 config ENV_UBI_PART
 	string "UBI partition name"
 	depends on ENV_IS_IN_UBI
+	default "ubi" if AIROHA_UBI_ENV
 	help
 	  MTD partition containing the UBI device
 
 config ENV_UBI_VOLUME
 	string "UBI volume name"
 	depends on ENV_IS_IN_UBI
+	default "ubootenv" if AIROHA_UBI_ENV
 	help
 	  Name of the volume that you want to store the environment in.
 
 config ENV_UBI_VOLUME_REDUND
 	string "UBI redundant volume name"
 	depends on ENV_IS_IN_UBI && ENV_REDUNDANT
+	default "ubootenv2" if AIROHA_UBI_ENV
 	help
 	  Name of the redundant volume that you want to store the environment in.
 

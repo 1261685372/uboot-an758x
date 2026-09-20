@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+
+#include "an7581-u-boot.dtsi"
+#include "an758x-recovery-layout-u-boot.dtsi"
+
+status_led: &{/leds/led-power} {
+};
+
+#include "an758x-status-led-u-boot.dtsi"
+
+&recovery_layout {
+	factory {
+		volume-name = "factory";
+		volume-size = <0x240000>;
+		volume-type = "dynamic";
+		bootph-all;
+	};
+};
+
+&spi_nand {
+	/* ID 2c:24 covers multiple geometries; the board compatible selects F50L2G41XA. */
+	compatible = "esmt,f50l2g41xa", "spi-nand";
+};
+
+&gdm1 {
+	/* Recovery networking requires gdm1 before relocation. */
+	status = "okay";
+	bootph-all;
+};

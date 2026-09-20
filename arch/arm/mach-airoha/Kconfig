@@ -29,19 +29,61 @@ config TARGET_AN7581
 	  Peripherals include Gigabit Ethernet, switch, USB3.0 and OTG, PCIe,
 	  I2S, PCM, S/PDIF, UART, SPI, I2C, IR TX/RX, and PWM.
 
+config TARGET_AN7583
+	bool "Airoha AN7583 SoC"
+	select ARM64
+
 endchoice
+
+config AIROHA_HTTP_RECOVERY
+	bool "Airoha HTTP recovery"
+	default y
+	select EVENT
+	select BUTTON
+	select BUTTON_GPIO
+	select LED
+	select LED_GPIO
+	select LED_ACTIVITY
+	select LED_SW_BLINK
+	select CMD_DHCP
+	select CMD_PING
+	select CMD_HTTPD
+	select HTTPD_DHCP_SERVER
+	help
+	  Provide the common lwIP, HTTP, DHCP, and diagnostic command set used by
+	  Airoha recovery environments.
+
+config AIROHA_UBI_ENV
+	bool "Airoha UBI environment"
+	select MTD
+	select DM_MTD
+	select MTD_UBI
+	select UBI_BLOCK
+	select CMD_MTD
+	select CMD_UBI
+	select CMD_UBI_RENAME
+	select ENV_IS_IN_UBI
+	select ENV_REDUNDANT
+	select ENV_RELOC_GD_ENV_ADDR
+	select ENV_OVERWRITE
+	select ENV_VARS_UBOOT_RUNTIME_CONFIG
+	help
+	  Store the primary and redundant U-Boot environments in the common Airoha
+	  UBI partition and expose the commands used by board recovery scripts.
 
 config SYS_SOC
 	default "en7523" if TARGET_EN7523
 	default "an7581" if TARGET_AN7581
+	default "an7583" if TARGET_AN7583
 
 config SYS_BOARD
 	default "en7523" if TARGET_EN7523
 	default "an7581" if TARGET_AN7581
+	default "an7583" if TARGET_AN7583
 
 config SYS_CONFIG_NAME
 	default "en7523" if TARGET_EN7523
 	default "an7581" if TARGET_AN7581
+	default "an7583" if TARGET_AN7583
 
 endif
-

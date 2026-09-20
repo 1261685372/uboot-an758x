@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>U-Boot</title>
+<style>
+:root{color-scheme:light;--blue:#1769aa;--line:#dbe1e8;--muted:#627083}
+*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#202a36;font:15px system-ui,sans-serif}
+main{max-width:960px;margin:auto;padding:28px 20px}header,.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}header{justify-content:space-between}
+h1{font-size:26px;margin:0}h2{font-size:20px;margin:0 0 18px}h3{font-size:16px;margin:0 0 12px}
+.info{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:22px 0;padding:20px;background:white;border:1px solid var(--line);border-radius:10px}
+.info span{display:block;color:var(--muted);margin-bottom:6px}.info strong{overflow-wrap:anywhere;font-size:16px}
+nav{display:flex;gap:8px;margin:20px 0}button{border:1px solid var(--line);border-radius:7px;background:white;color:inherit;font:inherit;padding:9px 15px;cursor:pointer}
+button.primary,nav button.active{background:var(--blue);border-color:var(--blue);color:white}button.danger{border-color:#b42318;color:#b42318}
+button:disabled,input:disabled,select:disabled{opacity:.5;cursor:default}.panel,.status{background:white;border:1px solid var(--line);border-radius:10px;padding:22px;margin-bottom:16px}
+input,select{font:inherit;padding:10px;border:1px solid #aeb9c7;border-radius:6px;max-width:100%;background:white;min-width:0}input[type=file]{flex:1}
+label{display:block;margin-bottom:8px}.wide{width:100%}.stack{display:grid;gap:16px}.muted{color:var(--muted)}.actions{margin-top:18px}
+progress{width:100%;height:14px;accent-color:var(--blue)}#output{white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto;font:13px/1.5 ui-monospace,monospace;margin:14px 0 0}
+#state{font-weight:600}#transfer{font-variant-numeric:tabular-nums;color:var(--muted)}.status .row{justify-content:space-between}
+details{border-top:1px solid var(--line);padding-top:18px;margin-top:18px}summary{cursor:pointer;font-weight:600;margin-bottom:16px}
+hr{border:0;border-top:1px solid var(--line);margin:26px 0}[hidden]{display:none!important}@media(max-width:650px){.info{grid-template-columns:1fr 1fr}.row input{width:100%}main{padding:18px 12px}}
+</style>
+</head>
+<body><main>
+<header><h1>U-Boot</h1><button id="language">简体中文</button></header>
+<div class="info">
+<div><span data-t="model">Model</span><strong id="model">—</strong></div>
+<div><span>RAM / Flash</span><strong id="memory">—</strong></div>
+<div><span data-t="version">Version</span><strong id="version">—</strong></div>
+</div>
+<nav><button data-tab="flash" class="active" data-t="flash">Flash</button><button data-tab="backup" data-t="backup">Backup</button><button data-tab="advanced" data-t="advanced">Advanced</button></nav>
+<section class="panel" id="flash">
+<div id="bl2Section">
+<h2 data-t="bl2Title">Flash BL2</h2>
+<label for="preloader">preloader.bin / firstblock.bin</label>
+<div class="row"><input id="preloader" type="file" accept=".bin"><button id="bl2Button" data-t="uploadWrite">Upload and write</button></div>
+</div>
+<hr id="bootDivider">
+<div id="ubiSection">
+<h2 data-t="ubiOperations">UBI operations</h2>
+<div id="ubiManagement">
+<p data-t="firstInstall">For the first installation, rebuild UBI first. Rebuilding erases all data in UBI.</p>
+<button id="rebuildButton" class="danger" data-t="rebuild">Rebuild UBI</button>
+</div>
+<div id="boardDataSection">
+<h3 class="actions" data-t="boardData">Board data</h3>
+<div id="boardDataList" class="stack"></div>
+</div>
+<h3 class="actions" data-t="ubootTitle">Flash U-Boot</h3>
+<label for="uboot">bl31-uboot.fip</label>
+<div class="row"><input id="uboot" type="file" accept=".fip,.bin"><button id="ubootButton" data-t="uploadWrite">Upload and write</button></div>
+<h3 class="actions" data-t="install">Install system</h3>
+<label for="firmware">sysupgrade.bin / sysupgrade.itb</label>
+<div class="row"><input id="firmware" type="file" accept=".bin,.itb"><button id="flashButton" class="primary" data-t="uploadFlash">Upload and flash</button></div>
+<div class="row actions"><button data-action="boot-production" data-t="bootSystem">Boot system</button><button data-action="reset" data-t="reboot">Reboot</button></div>
+</div>
+</section>
+<section class="panel" id="backup" hidden>
+<h2 data-t="backup">Backup</h2>
+<label for="backupTarget" data-t="target">Target</label><select id="backupTarget" class="wide"></select>
+<p id="backupHint" class="muted"></p>
+<button id="backupButton" class="primary" data-t="download">Download backup</button>
+</section>
+<section class="panel" id="advanced" hidden>
+<h2 data-t="advanced">Advanced</h2>
+<h3 data-t="ramBoot">RAM boot</h3>
+<div class="row"><input id="initramfs" type="file"><button id="bootButton" data-t="uploadBoot">Upload and boot</button></div>
+<details><summary data-t="partitionWrite">Write partition</summary>
+<div class="stack"><select id="writeTarget" class="wide"></select><input id="partitionImage" type="file"><button id="writeButton" class="danger" data-t="uploadWrite">Upload and write</button></div>
+</details>
+<details><summary data-t="environment">Environment</summary>
+<div class="row"><input id="envName" placeholder="ipaddr"><input id="envValue" placeholder="192.168.0.1"><button id="envButton" data-t="save">Save</button></div>
+</details>
+<details><summary data-t="console">Command console</summary>
+<div class="row"><input id="command" class="wide" placeholder="mtd list"><button id="commandButton" data-t="execute">Run</button><button data-action="exit" data-t="serial">Return to serial</button></div>
+</details>
+</section>
+<section class="status"><div class="row"><span id="state">—</span><button id="cancel" hidden data-t="cancel">Cancel transfer</button></div>
+<progress id="progress" max="100" value="0" hidden></progress><div id="transfer"></div><pre id="output"></pre></section>
+</main>
+<script>
+'use strict';
+const words={
+zh:{bl2Title:'刷写 BL2',ubiOperations:'UBI 操作',firstInstall:'首次刷机需要先重建 UBI。重建会清空其中的全部数据。',boardData:'板级数据',ubootTitle:'刷写 U-Boot',model:'机型',version:'版本',flash:'刷机',backup:'备份',advanced:'高级',install:'刷写系统',uploadFlash:'上传并刷写',bootSystem:'启动系统',reboot:'重启',target:'目标',download:'下载备份',ramBoot:'内存启动',uploadBoot:'上传并启动',rebuild:'重建 UBI',partitionWrite:'分区写入',uploadWrite:'上传并写入',environment:'环境变量',save:'保存',console:'命令控制台',execute:'执行',serial:'返回串口',cancel:'取消传输',idle:'就绪',upload:'上传中',downloadPhase:'下载中',queued:'等待执行',working:'正在处理',done:'完成',error:'操作失败',erase:'擦除中',create:'创建卷',ready:'上传完成','backup-ready':'备份已就绪',verify:'校验中',write:'写入中',waiting:'等待设备响应',busy:'设备正在处理其他操作',choose:'请选择文件',failed:'请求失败',cancelled:'传输已取消',whole:'整片 Flash',mtdHint:'MTD 备份为物理主数据，坏块填充 FF；NAND OOB 不包含在文件中。',volumeHint:'UBI 卷数据',taskChanged:'设备任务已变化，请刷新页面',network:'连接中断，请检查设备状态'},
+en:{bl2Title:'Flash BL2',ubiOperations:'UBI operations',firstInstall:'For the first installation, rebuild UBI first. Rebuilding erases all data in UBI.',boardData:'Board data',ubootTitle:'Flash U-Boot',model:'Model',version:'Version',flash:'Flash',backup:'Backup',advanced:'Advanced',install:'Install system',uploadFlash:'Upload and flash',bootSystem:'Boot system',reboot:'Reboot',target:'Target',download:'Download backup',ramBoot:'RAM boot',uploadBoot:'Upload and boot',rebuild:'Rebuild UBI',partitionWrite:'Write partition',uploadWrite:'Upload and write',environment:'Environment',save:'Save',console:'Command console',execute:'Run',serial:'Return to serial',cancel:'Cancel transfer',idle:'Ready',upload:'Uploading',downloadPhase:'Downloading',queued:'Queued',working:'Working',done:'Complete',error:'Operation failed',erase:'Erasing',create:'Creating volumes',ready:'Upload complete','backup-ready':'Backup ready',verify:'Verifying',write:'Writing',waiting:'Waiting for device',busy:'Device is busy',choose:'Select a file',failed:'Request failed',cancelled:'Transfer cancelled',whole:'Entire Flash',mtdHint:'MTD backup contains physical main-area data with bad blocks padded with FF. NAND OOB is excluded.',volumeHint:'UBI volume data',taskChanged:'Device task changed; refresh the page',network:'Connection lost; check device status'}
+};
+let language=(navigator.language||'').toLowerCase().startsWith('zh')?'zh':'en', localBusy=false, remoteBusy=true, activeXHR=null, targets=[], selectedTab='flash', rebooting=false;
+const el=id=>document.getElementById(id), t=key=>words[language][key]||key, text=(id,value)=>{el(id).textContent=value};
+function applyLanguage(){
+ document.documentElement.lang=language==='zh'?'zh-CN':'en';
+ document.querySelectorAll('[data-t]').forEach(e=>e.textContent=t(e.dataset.t));
+ text('language',language==='zh'?'English':'简体中文');catalog();
+}
+function bytes(n){return n>=1048576?(n/1048576).toFixed(1)+' MiB':n>=1024?(n/1024).toFixed(1)+' KiB':n+' B'}
+function controls(){
+ document.querySelectorAll('button,input,select').forEach(e=>{e.disabled=localBusy||remoteBusy});
+ el('cancel').disabled=false;el('cancel').hidden=!activeXHR;
+}
+function tab(name){selectedTab=name;['flash','backup','advanced'].forEach(n=>{el(n).hidden=n!==name;document.querySelector('[data-tab="'+n+'"]').classList.toggle('active',n===name)})}
+function hint(){const v=targets[Number(el('backupTarget').value)];text('backupHint',v?t(v.kind==='mtd'?'mtdHint':'volumeHint'):'')}
+function catalog(){
+ for(const id of ['backupTarget','writeTarget']){
+  const previous=el(id).value;el(id).replaceChildren();
+  targets.forEach((v,i)=>{
+   if(id==='writeTarget'&&v.whole)return;
+   const option=document.createElement('option');option.value=String(i);
+   option.textContent=(v.whole?t('whole'):v.name)+' · '+v.kind.toUpperCase()+' · '+bytes(v.size);
+   el(id).appendChild(option);
+  });
+  if([...el(id).options].some(o=>o.value===previous))el(id).value=previous;
+ }
+ hint();
+}
+function boardData(items){
+ const list=el('boardDataList');list.replaceChildren();
+ for(const item of items){
+  const block=document.createElement('div');
+  const label=document.createElement('label');label.textContent=item.target+' · '+item.kind.toUpperCase()+' · '+bytes(item.size);
+  const row=document.createElement('div');row.className='row';
+  const input=document.createElement('input');input.type='file';input.accept='.bin';
+  const button=document.createElement('button');button.dataset.t='uploadWrite';button.textContent=t('uploadWrite');
+  button.onclick=()=>run(async()=>{
+   await task({operation:'flash-board-data',target:item.target,upload_id:await uploadFile(input)});
+  });
+  row.append(input,button);block.append(label,row);list.append(block);
+ }
+}
+async function request(url,options){
+ const r=await fetch(url,{cache:'no-store',...options});
+ const value=await r.json();
+ if(!r.ok)throw new Error(r.status===409?t('busy'):value.error||t('failed'));
+ return value;
+}
+async function refresh(){
+ const [d,s]=await Promise.all([request('/api/device'),request('/api/storage')]);targets=s.targets||[];
+ text('model',d.model);text('memory',bytes(d.ram_bytes)+' / '+bytes(d.flash_bytes));text('version',d.version);
+ const hasBl2=targets.some(v=>v.kind==='mtd'&&v.name==='bl2');
+ el('bl2Section').hidden=!hasBl2;el('ubiSection').hidden=!d.ubi;
+ el('bootDivider').hidden=!(hasBl2&&d.ubi);el('ubiManagement').hidden=!d.rebuild;
+ el('boardDataSection').hidden=!d.board_data.length;boardData(d.board_data);
+ document.querySelector('[data-tab="flash"]').hidden=!(hasBl2||d.ubi);
+ if(!hasBl2&&!d.ubi&&selectedTab==='flash')tab('backup');catalog();
+}
+function status(s){remoteBusy=s.busy;text('state',t(s.phase==='download'?'downloadPhase':s.phase));text('output',s.output||'');controls()}
+async function waitTask(id){
+ let misses=0;
+ for(;;){
+  await new Promise(resolve=>setTimeout(resolve,700));
+  let s;
+  try{s=await request('/api/task');misses=0}catch(e){text('state',t('waiting'));if(rebooting&&++misses>=3)return {};continue}
+  if(s.id!==id)throw new Error(t('taskChanged'));
+  status(s);
+  if(s.state==='done'){if(s.code)throw new Error(s.output||t('failed'));return s}
+ }
+}
+async function task(payload){
+ const s=await request('/api/task',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+ return waitTask(s.id);
+}
+function transfer(url,body,responseType,progressBase=0,progressTotal=0){
+ return new Promise((resolve,reject)=>{
+  const xhr=new XMLHttpRequest();activeXHR=xhr;controls();
+  const started=performance.now();el('progress').hidden=false;el('progress').value=0;
+  xhr.open(body?'POST':'GET',url);xhr.responseType=responseType;
+  const onprogress=e=>{
+   const loaded=progressBase+e.loaded;const total=progressTotal||(e.lengthComputable?e.total:0);const seconds=Math.max(.01,(performance.now()-started)/1000);
+   el('progress').value=total?100*loaded/total:0;
+   text('transfer',bytes(loaded)+(total?' / '+bytes(total)+' · '+Math.floor(100*loaded/total)+'%':'')+' · '+bytes(e.loaded/seconds)+'/s');
+  };
+  (body?xhr.upload:xhr).onprogress=onprogress;
+  xhr.onload=()=>{activeXHR=null;controls();if(xhr.status!==200){reject(new Error(xhr.status===409?t('busy'):t('failed')));return}resolve(xhr.response)};
+  xhr.onerror=()=>{activeXHR=null;controls();reject(new Error(t('network')))};
+  xhr.onabort=()=>{activeXHR=null;controls();reject(new Error(t('cancelled')))};
+  xhr.send(body||null);
+ });
+}
+async function uploadFile(input){
+ const file=input.files[0];if(!file)throw new Error(t('choose'));
+ text('state',t('upload'));
+ const s=await transfer('/api/upload',file,'json');
+ return s.upload_id;
+}
+async function upload(id){return uploadFile(el(id))}
+async function run(fn){
+ if(localBusy||remoteBusy)return;
+ localBusy=true;rebooting=false;text('output','');text('transfer','');el('progress').hidden=true;controls();
+ try{await fn();if(!rebooting){text('state',t('done'));await refresh()}}
+ catch(e){rebooting=false;text('state',t('error'));text('output',e.message)}
+ finally{
+  localBusy=false;
+  try{remoteBusy=(await request('/api/task')).busy}catch(e){remoteBusy=true}
+  controls();
+ }
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
+el('language').onclick=()=>{
+ language=language==='zh'?'en':'zh';applyLanguage();
+};
+el('cancel').onclick=()=>activeXHR?.abort();
+el('backupTarget').onchange=hint;
+el('bl2Button').onclick=()=>run(async()=>{
+ await task({operation:'flash-bl2',upload_id:await upload('preloader')});
+});
+el('ubootButton').onclick=()=>run(async()=>{
+ await task({operation:'flash-uboot',upload_id:await upload('uboot')});
+});
+el('flashButton').onclick=()=>run(async()=>task({operation:'flash',upload_id:await upload('firmware')}));
+el('bootButton').onclick=()=>run(async()=>{const id=await upload('initramfs');rebooting=true;await task({operation:'boot-upload',upload_id:id})});
+el('writeButton').onclick=()=>run(async()=>{
+ const v=targets[Number(el('writeTarget').value)];if(!v)throw new Error(t('failed'));
+ await task({operation:'write',kind:v.kind,target:v.name,upload_id:await upload('partitionImage')});
+});
+el('rebuildButton').onclick=()=>run(async()=>{
+ await task({operation:'ubi-rebuild'});
+});
+el('backupButton').onclick=()=>run(async()=>{
+ const v=targets[Number(el('backupTarget').value)];if(!v)throw new Error(t('failed'));
+ const s=await task({operation:'backup',kind:v.kind,target:v.name});
+ text('state',t('downloadPhase'));
+ const parts=[];const total=s.download_size;const segment=4*1024*1024;
+ for(let offset=0;offset<total;offset+=segment){
+  const length=Math.min(segment,total-offset);
+  parts.push(await transfer('/api/download/'+s.download_id+'/'+offset+'/'+length,null,'blob',offset,total));
+ }
+ const blob=new Blob(parts,{type:'application/octet-stream'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=v.name+(v.kind==='mtd'?'-main':'')+'.bin';
+ a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+});
+el('envButton').onclick=()=>run(()=>task({operation:'env-set',name:el('envName').value,value:el('envValue').value}));
+el('envName').onchange=async()=>{try{const env=await request('/api/env');if(Object.hasOwn(env,el('envName').value))el('envValue').value=env[el('envName').value]}catch(e){}};
+el('commandButton').onclick=()=>run(()=>task({operation:'command',command:el('command').value}));
+document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>run(async()=>{rebooting=true;await task({operation:b.dataset.action})}));
+async function monitor(){
+ if(rebooting)return;
+ if(!localBusy){try{status(await request('/api/task'))}catch(e){remoteBusy=true;text('state',t('waiting'));controls()}}
+ setTimeout(monitor,1500);
+}
+applyLanguage();controls();refresh().then(()=>monitor()).catch(e=>{text('output',e.message);monitor()});
+</script></body></html>

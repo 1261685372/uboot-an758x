@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+
+/ {
+	options {
+		u-boot {
+			activity-led = <&status_led>;
+			activity-led-period-ms = <250>;
+		};
+	};
+};
+
+&status_led {
+	default-state = "on";
+};

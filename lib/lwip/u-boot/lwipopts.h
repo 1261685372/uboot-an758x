@@ -64,7 +64,37 @@
 
 #define MEM_ALIGNMENT                   8
 
+#ifdef CONFIG_CMD_HTTPD
+#define MEMP_NUM_TCP_SEG                64
+#else
 #define MEMP_NUM_TCP_SEG                16
+#endif
+
+#if defined(CONFIG_CMD_HTTPD)
+#define LWIP_HTTPD_SUPPORT_POST         1
+#define LWIP_HTTPD_CUSTOM_FILES         1
+#define LWIP_HTTPD_DYNAMIC_HEADERS      1
+#define LWIP_HTTPD_DYNAMIC_FILE_READ    1
+/* Fill the TCP window across streamed file blocks, including the short header. */
+#define HTTPD_LIMIT_SENDING_TO_2MSS      0
+#define HTTPD_MAX_WRITE_LEN(pcb)        32768
+/* Custom JSON responses own heap buffers that fs_close_custom releases. */
+#define HTTP_IS_DATA_VOLATILE(hs)       TCP_WRITE_FLAG_COPY
+/* U-Boot also exports fs_read for block filesystems. */
+#define fs_read                        lwip_http_fs_read
+#define LWIP_HTTPD_FILE_EXTENSION       1
+#define LWIP_HTTPD_KILL_OLD_ON_CONNECTIONS_EXCEEDED 1
+#define HTTPD_FSDATA_FILE               "fsdata_uboot.c"
+#define MEMP_NUM_TCP_PCB                8
+#define MEMP_NUM_TCP_PCB_LISTEN         2
+
+/* U-Boot's filesystem command layer exports the same generic fs_* names. */
+#define fs_open                         lwip_httpd_fs_open
+#define fs_close                        lwip_httpd_fs_close
+#define fs_bytes_left                   lwip_httpd_fs_bytes_left
+#define fs_open_custom                  lwip_httpd_fs_open_custom
+#define fs_close_custom                 lwip_httpd_fs_close_custom
+#endif
 
 /* IP fragmentation parameters for TFTP reassembly */
 #define IP_FRAG_MTU_USABLE              1480
@@ -145,7 +175,11 @@
 #define TCP_WND                         CONFIG_LWIP_TCP_WND
 #define LWIP_WND_SCALE                  1
 #define TCP_RCV_SCALE                   0x7
+#ifdef CONFIG_CMD_HTTPD
+#define TCP_SND_BUF                     (32 * TCP_MSS)
+#else
 #define TCP_SND_BUF                     (2 * TCP_MSS)
+#endif
 #ifdef CONFIG_PROT_TCP_SACK_LWIP
 #define LWIP_TCP_SACK_OUT               1
 #endif

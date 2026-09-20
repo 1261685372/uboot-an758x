@@ -1227,6 +1227,7 @@ static const struct spinand_manufacturer *spinand_manufacturers[] = {
 	&alliancememory_spinand_manufacturer,
 	&ato_spinand_manufacturer,
 	&esmt_c8_spinand_manufacturer,
+	&esmt_2c_spinand_manufacturer,
 	&fmsh_spinand_manufacturer,
 	&foresee_spinand_manufacturer,
 	&gigadevice_spinand_manufacturer,
@@ -1250,6 +1251,14 @@ static int spinand_manufacturer_match(struct spinand_device *spinand,
 		const struct spinand_manufacturer *manufacturer =
 			spinand_manufacturers[i];
 
+		/*
+		 * ID 2c:24 is shared by ESMT and Micron parts. The board compatible
+		 * selects the physical ESMT device and its plane-address semantics.
+		 */
+		if (manufacturer->compatible &&
+		    !device_is_compatible(spinand->slave->dev,
+					  manufacturer->compatible))
+			continue;
 		if (id[0] != manufacturer->id)
 			continue;
 

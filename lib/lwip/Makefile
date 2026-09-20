@@ -55,5 +55,9 @@ obj-y += \
 	lwip/src/core/udp.o \
 	lwip/src/netif/ethernet.o
 
+obj-$(CONFIG_CMD_HTTPD) += \
+	lwip/src/apps/http/fs.o \
+	lwip/src/apps/http/httpd.o
+
 obj-$(CONFIG_$(PHASE_)MBEDTLS_LIB_TLS) += lwip/src/apps/altcp_tls/altcp_tls_mbedtls.o \
 	lwip/src/apps/altcp_tls/altcp_tls_mbedtls_mem.o

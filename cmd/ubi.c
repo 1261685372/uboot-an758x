@@ -262,6 +262,44 @@ static struct ubi_volume *ubi_find_volume(char *volume)
 	return NULL;
 }
 
+bool ubi_volume_exists(const char *volume)
+{
+	return ubi && !ubi_check((char *)volume);
+}
+
+int ubi_volume_create(const char *volume, int64_t size, bool dynamic)
+{
+	if (!ubi)
+		return ENODEV;
+
+	if (!size)
+		size = (int64_t)ubi->avail_pebs * ubi->leb_size;
+
+	return ubi_create_vol((char *)volume, size, dynamic,
+			      UBI_VOL_NUM_AUTO, false);
+}
+
+int ubi_volume_get_size(const char *volume, size_t *used_bytes,
+			 size_t *reserved_bytes)
+{
+	struct ubi_volume *vol;
+
+	if (!ubi)
+		return ENODEV;
+
+	vol = ubi_find_volume((char *)volume);
+	if (!vol)
+		return ENODEV;
+
+	if (used_bytes)
+		*used_bytes = vol->used_bytes;
+	if (reserved_bytes)
+		*reserved_bytes = vol->reserved_pebs *
+			(ubi->leb_size - vol->data_pad);
+
+	return 0;
+}
+
 static int ubi_remove_vol(char *volume)
 {
 	int err, reserved_pebs, i;
@@ -316,6 +354,14 @@ out_err:
 	return err;
 }
 
+int ubi_volume_remove(const char *volume)
+{
+	if (!ubi)
+		return ENODEV;
+
+	return ubi_remove_vol((char *)volume);
+}
+
 static int ubi_rename_vol(char *oldname, char *newname)
 {
 	struct ubi_volume *vol;
@@ -352,6 +398,14 @@ static int ubi_rename_vol(char *oldname, char *newname)
 	list_add(&rename.list, &list);
 
 	return ubi_rename_volumes(ubi, &list);
+}
+
+int ubi_volume_rename(const char *oldname, const char *newname)
+{
+	if (!ubi)
+		return ENODEV;
+
+	return ubi_rename_vol((char *)oldname, (char *)newname);
 }
 
 static int ubi_volume_continue_write(char *volume, void *buf, size_t size)
@@ -503,7 +557,8 @@ int ubi_volume_write(char *volume, void *buf, loff_t offset, size_t size)
 	return ret;
 }
 
-int ubi_volume_read(char *volume, char *buf, loff_t offset, size_t size)
+static int ubi_read_data(char *volume, char *buf, loff_t offset, size_t size,
+			 bool quiet)
 {
 	int err, lnum, off, len, tbuf_size;
 	void *tbuf;
@@ -524,15 +579,19 @@ int ubi_volume_read(char *volume, char *buf, loff_t offset, size_t size)
 		printf("damaged volume, update marker is set");
 		return EBADF;
 	}
+	if (offp < 0 || offp > vol->used_bytes || size > vol->used_bytes - offp)
+		return EINVAL;
 	if (offp == vol->used_bytes)
-		return 0;
+		return size ? EINVAL : 0;
 
 	if (size == 0) {
-		printf("No size specified -> Using max size (%lld)\n", vol->used_bytes);
-		size = vol->used_bytes;
+		if (!quiet)
+			printf("No size specified -> Using remaining volume data\n");
+		size = vol->used_bytes - offp;
 	}
 
-	printf("Read %zu bytes from volume %s to %p\n", size, volume, buf);
+	if (!quiet)
+		printf("Read %zu bytes from volume %s to %p\n", size, volume, buf);
 
 	if (vol->corrupted)
 		printf("read from corrupted volume %d", vol->vol_id);
@@ -549,7 +608,8 @@ int ubi_volume_read(char *volume, char *buf, loff_t offset, size_t size)
 	}
 	len = size > tbuf_size ? tbuf_size : size;
 
-	led_activity_blink();
+	if (!quiet)
+		led_activity_blink();
 	tmp = offp;
 	off = do_div(tmp, vol->usable_leb_size);
 	lnum = tmp;
@@ -579,12 +639,24 @@ int ubi_volume_read(char *volume, char *buf, loff_t offset, size_t size)
 		len = size > tbuf_size ? tbuf_size : size;
 	} while (size);
 
-	if (!size)
+	if (!size && !quiet)
 		env_set_hex("filesize", len_read);
 
 	free(tbuf);
-	led_activity_off();
+	if (!quiet)
+		led_activity_off();
 	return err;
+}
+
+int ubi_volume_read(char *volume, char *buf, loff_t offset, size_t size)
+{
+	return ubi_read_data(volume, buf, offset, size, false);
+}
+
+/* Stream readers preserve upload metadata and keep serial output bounded. */
+int ubi_volume_read_quiet(char *volume, char *buf, loff_t offset, size_t size)
+{
+	return ubi_read_data(volume, buf, offset, size, true);
 }
 
 static int ubi_dev_scan(struct mtd_info *info, const char *vid_header_offset)
@@ -635,7 +707,7 @@ static int ubi_set_skip_check(char *volume, bool skip_check)
 	return ubi_change_vtbl_record(ubi, vol->vol_id, &vtbl_rec);
 }
 
-static int ubi_detach(void)
+int ubi_detach(void)
 {
 #ifdef CONFIG_CMD_UBIFS
 	/*

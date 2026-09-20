@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+/* BL2 and TF-A reserve the first 2 MiB of DRAM. */
+/memreserve/ 0x80000000 0x200000;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include "en7581.dtsi"
+
+/ {
+	model = "FiberHome HG5382A";
+	compatible = "fiberhome,hg5382a", "airoha,an7581", "airoha,en7581";
+
+	aliases {
+		serial0 = &uart1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x20000000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		key-reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			/* GPIO_DATA1 bit 3 maps to the active-low GPIO35 reset key. */
+			gpios = <&en7581_pinctrl 35 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led-power {
+			label = "blue:power";
+			gpios = <&en7581_pinctrl 13 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
+		};
+	};
+};
+
+&en7581_pinctrl {
+	gpio-ranges = <&en7581_pinctrl 0 13 50>;
+
+	pnand_pins: pnand-pins {
+		mux {
+			function = "pnand";
+			groups = "pnand";
+		};
+	};
+};
+
+&{/soc} {
+	/delete-node/ spi@1fa10000;
+
+	pnand: nand-controller@1fa11000 {
+		compatible = "airoha,en7581-nfc";
+		reg = <0x0 0x1fa11000 0x0 0x600>;
+		clocks = <&scuclk EN7523_CLK_SPI>;
+		clock-names = "nfi_clk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pnand_pins>;
+		nand-ecc-engine = <&pnand_ecc>;
+		status = "okay";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		nand@0 {
+			reg = <0>;
+			nand-bus-width = <8>;
+			/* Syndrome mode describes the interleaved FDM/BCH page layout. */
+			nand-ecc-mode = "hw_syndrome";
+		};
+	};
+
+	pnand_ecc: ecc@1fa12000 {
+		compatible = "airoha,en7581-nand-ecc";
+		reg = <0x0 0x1fa12000 0x0 0x400>;
+		status = "okay";
+	};
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	status = "okay";
+};

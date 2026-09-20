@@ -48,8 +48,16 @@ extern int ubi_mtd_param_parse(const char *val, struct kernel_param *kp);
 extern int ubi_init(void);
 extern void ubi_exit(void);
 extern int ubi_part(char *part_name, const char *vid_header_offset);
+int ubi_detach(void);
+extern bool ubi_volume_exists(const char *volume);
+extern int ubi_volume_create(const char *volume, int64_t size, bool dynamic);
+extern int ubi_volume_remove(const char *volume);
+extern int ubi_volume_rename(const char *oldname, const char *newname);
+extern int ubi_volume_get_size(const char *volume, size_t *used_bytes,
+			       size_t *reserved_bytes);
 extern int ubi_volume_write(char *volume, void *buf, loff_t offset, size_t size);
 extern int ubi_volume_read(char *volume, char *buf, loff_t offset, size_t size);
+int ubi_volume_read_quiet(char *volume, char *buf, loff_t offset, size_t size);
 
 extern struct ubi_device *ubi_devices[];
 int cmd_ubifs_mount(char *vol_name);

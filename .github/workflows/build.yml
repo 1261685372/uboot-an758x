@@ -1,0 +1,78 @@
+name: Build AN758x U-Boot
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - hg5382a
+          - hg5585f-ct
+          - hg5585f-cu
+          - xg2010g
+          - zn504xg-d
+          - zn515xg-d
+          - ung00a
+          - xg-040g-md
+          - xg-040g-tf
+          - xg-040g-mf
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison ca-certificates curl device-tree-compiler flex \
+            gcc-aarch64-linux-gnu gcc-arm-none-eabi libssl-dev \
+            python3 python3-pyelftools swig
+
+      - name: Download Mbed TLS
+        run: |
+          curl -L https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v3.4.1.tar.gz |
+            tar -xz
+          echo "MBEDTLS_DIR=$PWD/mbedtls-3.4.1" >> "$GITHUB_ENV"
+
+      - name: Build ${{ matrix.target }}
+        env:
+          CROSS_COMPILE: aarch64-linux-gnu-
+          ARM32_CROSS_COMPILE: arm-none-eabi-
+          BUILD_JOBS: 4
+          AIROHA_SIGN_KEY: ${{ secrets.AIROHA_SIGN_KEY }}
+        run: ./scripts/build-an758x.sh "${{ matrix.target }}"
+
+      - name: Upload ${{ matrix.target }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: an758x-${{ matrix.target }}
+          path: output/${{ matrix.target }}/an75*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: an758x-*
+          path: release
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --generate-notes

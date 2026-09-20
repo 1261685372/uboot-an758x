@@ -651,6 +651,16 @@ config NAND_MT7621
 	  The controller supports 4~12 bits correction per 512 bytes with a
 	  maximum 4KB page size.
 
+config NAND_AIROHA_EN7581
+	bool "Support for Airoha EN7581 parallel NAND controller"
+	depends on ARCH_AIROHA && TARGET_AN7581
+	select SYS_NAND_SELF_INIT
+	imply CMD_NAND
+	help
+	  Enables the 8-bit parallel NAND datapath and BCH ECC engine in EN7581.
+	  The controller keeps eight FDM bytes in each 512-byte sector and uses
+	  UBI for bad-block and wear management.
+
 comment "Generic NAND options"
 
 config SYS_NAND_BLOCK_SIZE

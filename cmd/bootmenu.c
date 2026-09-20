@@ -482,7 +482,11 @@ static void menu_display_statusline(struct menu *m)
 	printf(ANSI_CURSOR_POSITION, 1, 1);
 	puts(ANSI_CLEAR_LINE);
 	printf(ANSI_CURSOR_POSITION, 2, 3);
-	puts("*** U-Boot Boot Menu ***");
+	if (menu->mtitle)
+		puts(menu->mtitle);
+	else
+		puts("  *** U-Boot Boot Menu ***");
+
 	puts(ANSI_CLEAR_LINE_TO_END);
 	printf(ANSI_CURSOR_POSITION, 3, 1);
 	puts(ANSI_CLEAR_LINE);
@@ -569,6 +573,7 @@ static enum bootmenu_ret bootmenu_show(int uefi, int delay)
 		return BOOTMENU_RET_FAIL;
 	}
 
+	bootmenu->mtitle = env_get("bootmenu_title");
 	for (iter = bootmenu->first; iter; iter = iter->next) {
 		if (menu_item_add(menu, iter->key, iter) != 1)
 			goto cleanup;

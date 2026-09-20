@@ -348,10 +348,12 @@ struct spinand_manufacturer_ops {
  * @chips: supported SPI NANDs under current manufacturer
  * @nchips: number of SPI NANDs available in chips array
  * @ops: manufacturer operations
+ * @compatible: Optional board compatible used to disambiguate shared IDs
  */
 struct spinand_manufacturer {
 	u8 id;
 	char *name;
+	const char *compatible;
 	const struct spinand_info *chips;
 	const size_t nchips;
 	const struct spinand_manufacturer_ops *ops;
@@ -361,6 +363,7 @@ struct spinand_manufacturer {
 extern const struct spinand_manufacturer alliancememory_spinand_manufacturer;
 extern const struct spinand_manufacturer ato_spinand_manufacturer;
 extern const struct spinand_manufacturer esmt_c8_spinand_manufacturer;
+extern const struct spinand_manufacturer esmt_2c_spinand_manufacturer;
 extern const struct spinand_manufacturer fmsh_spinand_manufacturer;
 extern const struct spinand_manufacturer foresee_spinand_manufacturer;
 extern const struct spinand_manufacturer gigadevice_spinand_manufacturer;

@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+
+/* Shared recovery resources for both HG5585F operator variants. */
+
+#include "an7581-u-boot.dtsi"
+#include "an758x-recovery-layout-u-boot.dtsi"
+
+status_led: &{/leds/led-power} {
+};
+
+#include "an758x-status-led-u-boot.dtsi"
+
+&recovery_layout {
+	factory {
+		volume-name = "factory";
+		volume-size = <0x100000>;
+		volume-type = "static";
+		bootph-all;
+	};
+};
+
+&{/soc} {
+	/delete-node/ spi@1fa10000;
+};
+
+&gdm1 {
+	status = "okay";
+	bootph-all;
+};

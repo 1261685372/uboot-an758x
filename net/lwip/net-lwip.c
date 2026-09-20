@@ -40,27 +40,32 @@ char *pxelinux_configfile;
 static err_t net_lwip_tx(struct netif *netif, struct pbuf *p)
 {
 	struct udevice *udev = netif->state;
+	u16_t length = p->tot_len;
 	void *pp = NULL;
 	int err;
 
 	if (CONFIG_IS_ENABLED(LWIP_DEBUG_RXTX)) {
-		printf("net_lwip_tx: %u bytes, udev %s\n", p->len, udev->name);
+		printf("net_lwip_tx: %u bytes, udev %s\n", length, udev->name);
 		print_hex_dump("net_lwip_tx: ", 0, 16, 1, p->payload, p->len,
 			       true);
 	}
 
-	if ((unsigned long)p->payload % PKTALIGN) {
+	if (p->next || (unsigned long)p->payload % PKTALIGN) {
 		/*
-		 * Some net drivers have strict alignment requirements and may
-		 * fail or output invalid data if the packet is not aligned.
+		 * Ethernet drivers consume one contiguous frame. TCP can prepend its
+		 * headers as separate pbuf segments, so copying the complete chain also
+		 * satisfies the DMA alignment required by the active Ethernet device.
 		 */
-		pp = memalign(PKTALIGN, p->len);
+		pp = memalign(PKTALIGN, length);
 		if (!pp)
 			return ERR_ABRT;
-		memcpy(pp, p->payload, p->len);
+		if (pbuf_copy_partial(p, pp, length, 0) != length) {
+			free(pp);
+			return ERR_ABRT;
+		}
 	}
 
-	err = eth_get_ops(udev)->send(udev, pp ? pp : p->payload, p->len);
+	err = eth_get_ops(udev)->send(udev, pp ? pp : p->payload, length);
 	free(pp);
 	if (err) {
 		debug("send error %d\n", err);

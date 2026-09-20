@@ -17,10 +17,18 @@
 
 /* ESMT uses GigaDevice 0xc8 JECDEC ID on some SPI NANDs */
 #define SPINAND_MFR_ESMT_C8			0xc8
+#define SPINAND_MFR_ESMT_2C			0x2c
 
 #define ESMT_F50L1G41LB_CFG_OTP_PROTECT		BIT(7)
 #define ESMT_F50L1G41LB_CFG_OTP_LOCK		\
 	(CFG_OTP_ENABLE | ESMT_F50L1G41LB_CFG_OTP_PROTECT)
+
+#define ESMT_F50L2G41XA_STATUS_ECC_MASK		GENMASK(6, 4)
+#define ESMT_F50L2G41XA_STATUS_ECC_NO_BITFLIPS	(0 << 4)
+#define ESMT_F50L2G41XA_STATUS_ECC_1TO3		(1 << 4)
+#define ESMT_F50L2G41XA_STATUS_ECC_UNCOR		(2 << 4)
+#define ESMT_F50L2G41XA_STATUS_ECC_4TO6		(3 << 4)
+#define ESMT_F50L2G41XA_STATUS_ECC_7TO8		(5 << 4)
 
 static SPINAND_OP_VARIANTS(read_cache_variants,
 			   SPINAND_PAGE_READ_FROM_CACHE_1S_1S_4S_OP(0, 1, NULL, 0, 0),
@@ -112,6 +120,57 @@ static const struct mtd_ooblayout_ops f50l1g41lb_ooblayout = {
 	.rfree = f50l1g41lb_ooblayout_free,
 };
 
+/*
+ * F50L2G41XA stores bad-block metadata in OOB bytes 0..3, user data in
+ * bytes 4..63, and internal ECC data in bytes 64..127. Linux and U-Boot use
+ * the same boundary so each stage can read the other's UBI metadata.
+ */
+static int f50l2g41xa_ooblayout_ecc(struct mtd_info *mtd, int section,
+				    struct mtd_oob_region *region)
+{
+	if (section)
+		return -ERANGE;
+
+	region->offset = mtd->oobsize / 2;
+	region->length = mtd->oobsize / 2;
+	return 0;
+}
+
+static int f50l2g41xa_ooblayout_free(struct mtd_info *mtd, int section,
+				     struct mtd_oob_region *region)
+{
+	if (section)
+		return -ERANGE;
+
+	region->offset = 4;
+	region->length = (mtd->oobsize / 2) - 4;
+	return 0;
+}
+
+static const struct mtd_ooblayout_ops f50l2g41xa_ooblayout = {
+	.ecc = f50l2g41xa_ooblayout_ecc,
+	.rfree = f50l2g41xa_ooblayout_free,
+};
+
+static int f50l2g41xa_ecc_get_status(struct spinand_device *spinand,
+				     u8 status)
+{
+	switch (status & ESMT_F50L2G41XA_STATUS_ECC_MASK) {
+	case ESMT_F50L2G41XA_STATUS_ECC_NO_BITFLIPS:
+		return 0;
+	case ESMT_F50L2G41XA_STATUS_ECC_1TO3:
+		return 3;
+	case ESMT_F50L2G41XA_STATUS_ECC_UNCOR:
+		return -EBADMSG;
+	case ESMT_F50L2G41XA_STATUS_ECC_4TO6:
+		return 6;
+	case ESMT_F50L2G41XA_STATUS_ECC_7TO8:
+		return 8;
+	default:
+		return -EINVAL;
+	}
+}
+
 static int f50l1g41lb_otp_info(struct spinand_device *spinand, size_t len,
 			       struct otp_info *buf, size_t *retlen, bool user)
 {
@@ -189,6 +248,20 @@ static const struct spinand_fact_otp_ops f50l1g41lb_fact_otp_ops = {
 	.read = spinand_fact_otp_read,
 };
 
+static const struct spinand_info esmt_2c_spinand_table[] = {
+	SPINAND_INFO("F50L2G41XA",
+		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_DUMMY, 0x24),
+		     NAND_MEMORG(1, 2048, 128, 64, 2048, 40, 2, 1, 1),
+		     NAND_ECCREQ(8, 512),
+		     SPINAND_INFO_OP_VARIANTS(&read_cache_variants,
+					      &write_cache_variants,
+					      &update_cache_variants),
+		     SPINAND_HAS_PROG_PLANE_SELECT_BIT |
+		     SPINAND_HAS_READ_PLANE_SELECT_BIT,
+		     SPINAND_ECCINFO(&f50l2g41xa_ooblayout,
+				     f50l2g41xa_ecc_get_status)),
+};
+
 static const struct spinand_info esmt_c8_spinand_table[] = {
 	SPINAND_INFO("F50L1G41LB",
 		     SPINAND_ID(SPINAND_READID_METHOD_OPCODE_ADDR, 0x01, 0x7f,
@@ -227,6 +300,15 @@ static const struct spinand_info esmt_c8_spinand_table[] = {
 };
 
 static const struct spinand_manufacturer_ops esmt_spinand_manuf_ops = {
+};
+
+const struct spinand_manufacturer esmt_2c_spinand_manufacturer = {
+	.id = SPINAND_MFR_ESMT_2C,
+	.name = "ESMT",
+	.compatible = "esmt,f50l2g41xa",
+	.chips = esmt_2c_spinand_table,
+	.nchips = ARRAY_SIZE(esmt_2c_spinand_table),
+	.ops = &esmt_spinand_manuf_ops,
 };
 
 const struct spinand_manufacturer esmt_c8_spinand_manufacturer = {

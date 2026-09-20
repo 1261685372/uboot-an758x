@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+/* BL2 and TF-A reserve the first 2 MiB of DRAM. */
+/memreserve/ 0x80000000 0x200000;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include "en7581.dtsi"
+
+/ {
+	model = "Gemtek XG2010G";
+	compatible = "gemtek,xg2010g", "airoha,an7581", "airoha,en7581";
+
+	aliases {
+		serial0 = &uart1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x40000000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		key-reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led-status-green {
+			label = "green:status";
+			gpios = <&en7581_pinctrl 44 GPIO_ACTIVE_LOW>;
+		};
+	};
+};
+
+&en7581_pinctrl {
+	gpio-ranges = <&en7581_pinctrl 0 13 50>;
+};
+
+&snfi {
+	status = "okay";
+};
+
+&spi_nand {
+	compatible = "winbond,w25n04kv", "spi-nand";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "bl2";
+			/* BootROM reads the BL2 FIP at offset 0x800 in the first eraseblock. */
+			reg = <0x00000000 0x00020000>;
+		};
+
+		partition@20000 {
+			label = "ubi";
+			/* A zero length applies the MTD MTDPART_SIZ_FULL convention. */
+			reg = <0x00020000 0x00000000>;
+		};
+	};
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	status = "okay";
+};

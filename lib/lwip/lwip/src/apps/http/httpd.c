@@ -1108,6 +1108,12 @@ http_check_eof(struct altcp_pcb *pcb, struct http_state *hs)
   }
   bytes_left = fs_bytes_left(hs->handle);
   if (bytes_left <= 0) {
+#if LWIP_HTTPD_CUSTOM_FILES
+    /* Keep custom response ownership until TCP acknowledges its payload. */
+    if ((hs->handle->flags & FS_FILE_FLAGS_CUSTOM) && altcp_sndqueuelen(pcb)) {
+      return 0;
+    }
+#endif
     /* We reached the end of the file so this request is done. */
     LWIP_DEBUGF(HTTPD_DEBUG, ("End of file.\n"));
     http_eof(pcb, hs);
@@ -1632,10 +1638,26 @@ http_send(struct altcp_pcb *pcb, struct http_state *hs)
   } else
 #endif /* LWIP_HTTPD_SSI */
   {
-    data_to_send = http_send_data_nonssi(pcb, hs);
+    /* Copy-backed streams can refill their buffer while earlier data awaits ACK. */
+    do {
+      u8_t sent = http_send_data_nonssi(pcb, hs);
+      data_to_send |= sent;
+      if (!sent || hs->left || !altcp_sndbuf(pcb) ||
+          fs_bytes_left(hs->handle) <= 0) {
+        break;
+      }
+      if (!http_check_eof(pcb, hs)) {
+        return data_to_send;
+      }
+    } while (1);
   }
 
   if ((hs->left == 0) && (fs_bytes_left(hs->handle) <= 0)) {
+#if LWIP_HTTPD_CUSTOM_FILES
+    if ((hs->handle->flags & FS_FILE_FLAGS_CUSTOM) && altcp_sndqueuelen(pcb)) {
+      return data_to_send;
+    }
+#endif
     /* We reached the end of the file so this request is done.
      * This adds the FIN flag right into the last data segment. */
     LWIP_DEBUGF(HTTPD_DEBUG, ("End of file.\n"));
@@ -2658,7 +2680,9 @@ http_accept(void *arg, struct altcp_pcb *pcb, err_t err)
   return ERR_OK;
 }
 
-static void
+static struct altcp_pcb *httpd_pcb;
+
+static struct altcp_pcb *
 httpd_init_pcb(struct altcp_pcb *pcb, u16_t port)
 {
   err_t err;
@@ -2671,8 +2695,13 @@ httpd_init_pcb(struct altcp_pcb *pcb, u16_t port)
     LWIP_ASSERT("httpd_init: tcp_bind failed", err == ERR_OK);
     pcb = altcp_listen(pcb);
     LWIP_ASSERT("httpd_init: tcp_listen failed", pcb != NULL);
-    altcp_accept(pcb, http_accept);
+    if (pcb != NULL) {
+      altcp_accept(pcb, http_accept);
+      return pcb;
+    }
   }
+
+  return NULL;
 }
 
 /**
@@ -2696,7 +2725,35 @@ httpd_init(void)
 
   pcb = altcp_tcp_new_ip_type(IPADDR_TYPE_ANY);
   LWIP_ASSERT("httpd_init: tcp_new failed", pcb != NULL);
-  httpd_init_pcb(pcb, HTTPD_SERVER_PORT);
+  if (httpd_pcb == NULL) {
+    httpd_pcb = httpd_init_pcb(pcb, HTTPD_SERVER_PORT);
+  } else if (pcb != NULL) {
+    altcp_abort(pcb);
+  }
+}
+
+void
+httpd_stop(void)
+{
+  err_t err;
+
+#if LWIP_HTTPD_KILL_OLD_ON_CONNECTIONS_EXCEEDED
+  /* Re-entry needs the listener port and connection state fully released. */
+  while (http_connections != NULL) {
+    http_close_or_abort_conn(http_connections->pcb, http_connections, 1);
+  }
+#endif
+
+  if (httpd_pcb == NULL) {
+    return;
+  }
+
+  altcp_accept(httpd_pcb, NULL);
+  err = altcp_close(httpd_pcb);
+  if (err != ERR_OK) {
+    altcp_abort(httpd_pcb);
+  }
+  httpd_pcb = NULL;
 }
 
 #if HTTPD_ENABLE_HTTPS

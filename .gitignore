@@ -38,6 +38,7 @@
 *.patch
 *.pem
 *.s
+!tf-a/**/*.S
 *.su
 *.swp
 *.tab.[ch]
@@ -67,11 +68,20 @@ fit-dtb.blob*
 !.gitattributes
 !.gitignore
 !.mailmap
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+
+# TF-A links these platform objects into BL22, BL23, and BL31.
+!tf-a/plat/ecnt/an758*/bl*/*.o
 
 #
 # Generated files
 #
 /spl/
+/build/
+/output/
+/archive/
 /tpl/
 /vpl/
 /defconfig

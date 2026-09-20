@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+
+/ {
+	/* Board overlays add the data volumes consumed by recovery and Linux. */
+	recovery_layout: recovery-layout {
+		compatible = "airoha,an758x-recovery-layout";
+		bootph-all;
+	};
+};

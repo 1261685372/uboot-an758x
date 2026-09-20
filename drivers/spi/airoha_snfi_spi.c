@@ -559,15 +559,20 @@ static ssize_t airoha_snand_dirmap_read(struct spi_mem_dirmap_desc *desc,
 	struct airoha_snand_priv *priv = dev_get_priv(bus);
 	u8 *txrx_buf = priv->txrx_buf;
 	dma_addr_t dma_addr;
+	u64 cache_offs = offs;
 	u32 val, rd_mode, opcode;
 	size_t bytes;
 	int err;
+
+	/* The dirmap descriptor owns the plane base; DMA receives the page offset. */
+	if (desc->info.offset && cache_offs >= desc->info.offset)
+		cache_offs -= desc->info.offset;
 
 	if (!priv->dma) {
 		/* simplified version of spi_mem_no_dirmap_read() */
 		struct spi_mem_op op = desc->info.op_tmpl;
 
-		op.addr.val = desc->info.offset + offs;
+		op.addr.val = desc->info.offset + cache_offs;
 		op.data.buf.in = buf;
 		op.data.nbytes = len;
 		err = spi_mem_exec_op(desc->slave, &op);
@@ -578,7 +583,7 @@ static ssize_t airoha_snand_dirmap_read(struct spi_mem_dirmap_desc *desc,
 	}
 
 	/* minimum oob size is 64 */
-	bytes = round_up(offs + len, 64);
+	bytes = round_up(cache_offs + len, 64);
 
 	/*
 	 * DUALIO and QUADIO opcodes are not supported by the spi controller,
@@ -742,7 +747,7 @@ static ssize_t airoha_snand_dirmap_read(struct spi_mem_dirmap_desc *desc,
 	if (err < 0)
 		return err;
 
-	memcpy(buf, txrx_buf + offs, len);
+	memcpy(buf, txrx_buf + cache_offs, len);
 
 	return len;
 
@@ -761,15 +766,20 @@ static ssize_t airoha_snand_dirmap_write(struct spi_mem_dirmap_desc *desc,
 	struct airoha_snand_priv *priv = dev_get_priv(bus);
 	u8 *txrx_buf = priv->txrx_buf;
 	dma_addr_t dma_addr;
+	u64 cache_offs = offs;
 	u32 wr_mode, val, opcode;
 	size_t bytes;
 	int err;
+
+	/* The dirmap descriptor owns the plane base; DMA receives the page offset. */
+	if (desc->info.offset && cache_offs >= desc->info.offset)
+		cache_offs -= desc->info.offset;
 
 	if (!priv->dma) {
 		/* simplified version of spi_mem_no_dirmap_write() */
 		struct spi_mem_op op = desc->info.op_tmpl;
 
-		op.addr.val = desc->info.offset + offs;
+		op.addr.val = desc->info.offset + cache_offs;
 		op.data.buf.out = buf;
 		op.data.nbytes = len;
 		err = spi_mem_exec_op(desc->slave, &op);
@@ -780,7 +790,7 @@ static ssize_t airoha_snand_dirmap_write(struct spi_mem_dirmap_desc *desc,
 	}
 
 	/* minimum oob size is 64 */
-	bytes = round_up(offs + len, 64);
+	bytes = round_up(cache_offs + len, 64);
 
 	opcode = desc->info.op_tmpl.cmd.opcode;
 	switch (opcode) {
@@ -797,11 +807,12 @@ static ssize_t airoha_snand_dirmap_write(struct spi_mem_dirmap_desc *desc,
 		return -EOPNOTSUPP;
 	}
 
-	if (offs > 0)
-		memset(txrx_buf, 0xff, offs);
-	memcpy(txrx_buf + offs, buf, len);
-	if (bytes > offs + len)
-		memset(txrx_buf + offs + len, 0xff, bytes - offs - len);
+	if (cache_offs > 0)
+		memset(txrx_buf, 0xff, cache_offs);
+	memcpy(txrx_buf + cache_offs, buf, len);
+	if (bytes > cache_offs + len)
+		memset(txrx_buf + cache_offs + len, 0xff,
+		       bytes - cache_offs - len);
 
 	err = airoha_snand_set_mode(priv, SPI_MODE_DMA);
 	if (err < 0)

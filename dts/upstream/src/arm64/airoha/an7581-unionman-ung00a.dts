@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+/* BootROM reads the BL2 preloader FIP at offset 0x800 in the first block. */
+/memreserve/ 0x80000000 0x200000;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include "en7581.dtsi"
+
+/*
+ * This independent description records the UART, key, NAND, and internal
+ * Ethernet wiring established for early boot on UNG00A.
+ */
+/ {
+	model = "Unionman UNG00A";
+	compatible = "unionman,ung00a", "airoha,an7581", "airoha,en7581";
+
+	aliases {
+		serial0 = &uart1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	/* 512 MiB is the fallback until BL2 publishes the detected capacity. */
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x20000000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		key-reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			/* The board configuration maps RESET to active-low GPIO0. */
+			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led-power {
+			label = "green:power";
+			/* The board configuration maps Power to active-low GPIO17. */
+			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
+		};
+	};
+};
+
+&en7581_pinctrl {
+	/* SoC pins 13..62 map to GPIO0..49. */
+	gpio-ranges = <&en7581_pinctrl 0 13 50>;
+};
+
+&snfi {
+	status = "okay";
+};
+
+&spi_nand {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		bl2@0 {
+			label = "bl2";
+			reg = <0x00000000 0x00020000>;
+		};
+
+		/* UBI stores every boot stage and board-data volume after BL2. */
+		ubi@20000 {
+			label = "ubi";
+			reg = <0x00020000 0x00000000>;
+		};
+	};
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	/* Recovery and TFTP use the internal switch CPU port. */
+	status = "okay";
+};

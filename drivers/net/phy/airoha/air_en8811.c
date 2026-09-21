@@ -25,10 +25,6 @@
 #include <u-boot/crc.h>
 #include <linux/phy/phy-common-props.h>
 
-#if IS_ENABLED(CONFIG_PHY_AIROHA_EN8811_EMBEDDED_FW)
-#include "air_en8811h_fw.h"
-#endif
-
 /* MII Registers */
 #define AIR_AUX_CTRL_STATUS		0x1d
 #define AIR_AUX_CTRL_STATUS_SPEED_MASK	GENMASK(4, 2)
@@ -690,35 +686,25 @@ static int en8811h_read_fw(void **fw, size_t *fwsize, struct en8811h_priv *priv)
 static int en8811h_load_firmware(struct phy_device *phydev)
 {
 	struct en8811h_priv *priv = phydev->priv;
-	const unsigned char *dm_buf, *dsp_buf;
 	size_t fw_size;
-	void *buffer = NULL;
+	void *buffer;
 	int ret;
 
-	if (IS_ENABLED(CONFIG_PHY_AIROHA_EN8811_EMBEDDED_FW)) {
-		dm_buf = EthMD32_dm;
-		dsp_buf = EthMD32_pm;
-	} else {
-		priv->script_name = SCRIPT_NAME(en8811h);
-		priv->mem_size = EN8811H_MD32_DM_SIZE + EN8811H_MD32_DSP_SIZE;
+	priv->script_name = SCRIPT_NAME(en8811h);
+	priv->mem_size = EN8811H_MD32_DM_SIZE + EN8811H_MD32_DSP_SIZE;
 
-		ret = en8811h_read_fw(&buffer, &fw_size, priv);
-		if (ret < 0) {
-			dev_err(phydev->dev, "Failed to get firmware data\n");
-			return -EINVAL;
-		}
+	ret = en8811h_read_fw(&buffer, &fw_size, priv);
+	if (ret < 0) {
+		dev_err(phydev->dev, "Failed to get firmware data\n");
+		return -EINVAL;
+	}
 
-		if (fw_size != EN8811H_MD32_DM_SIZE + EN8811H_MD32_DSP_SIZE) {
-			dev_err(phydev->dev,
-				"MD32 firmware size mismatch (0x%zx != 0x%x)\n",
-				fw_size,
-				EN8811H_MD32_DM_SIZE + EN8811H_MD32_DSP_SIZE);
-			ret = -EINVAL;
-			goto en8811h_load_firmware_out;
-		}
-
-		dm_buf = buffer;
-		dsp_buf = (unsigned char *)buffer + EN8811H_MD32_DM_SIZE;
+	if (fw_size != EN8811H_MD32_DM_SIZE + EN8811H_MD32_DSP_SIZE) {
+		dev_err(phydev->dev,
+			"MD32 firmware size mismatch (0x%zx != 0x%x)\n",
+			fw_size, EN8811H_MD32_DM_SIZE + EN8811H_MD32_DSP_SIZE);
+		ret = -EINVAL;
+		goto en8811h_load_firmware_out;
 	}
 
 	ret = air_buckpbus_reg_write(phydev, EN8811H_FW_CTRL_1,
@@ -733,12 +719,12 @@ static int en8811h_load_firmware(struct phy_device *phydev)
 		goto en8811h_load_firmware_out;
 
 	ret = air_write_buf(phydev, AIR_FW_ADDR_DM, EN8811H_MD32_DM_SIZE,
-			    dm_buf);
+			    (unsigned char *)buffer);
 	if (ret < 0)
 		goto en8811h_load_firmware_out;
 
 	ret = air_write_buf(phydev, AIR_FW_ADDR_DSP, EN8811H_MD32_DSP_SIZE,
-			    dsp_buf);
+			    (unsigned char *)buffer + EN8811H_MD32_DM_SIZE);
 	if (ret < 0)
 		goto en8811h_load_firmware_out;
 

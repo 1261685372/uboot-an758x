@@ -1067,6 +1067,7 @@ static inline void *nand_get_manufacturer_data(struct nand_chip *chip)
 #define NAND_MFR_ESMT		0xc8
 #define NAND_MFR_GIGADEVICE	0xc8
 #define NAND_MFR_DOSILICON	0xe5
+#define NAND_MFR_WINBOND	0xef
 
 /* The maximum expected count of bytes in the NAND ID sequence */
 #define NAND_MAX_ID_LEN 8

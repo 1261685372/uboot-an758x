@@ -211,6 +211,7 @@ struct nand_manufacturer nand_manuf_ids[] = {
 	{NAND_MFR_YMTC, "YMTC", &ymtc_nand_manuf_ops},
 	{NAND_MFR_FMD, "FMD", &fmd_nand_manuf_ops},
 	{NAND_MFR_JZ, "JZ", &jz_nand_manuf_ops},
+	{NAND_MFR_WINBOND, "Winbond"},
 	{0x0, "Unknown"}
 };
 

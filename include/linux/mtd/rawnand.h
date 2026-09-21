@@ -1061,6 +1061,12 @@ static inline void *nand_get_manufacturer_data(struct nand_chip *chip)
 #define NAND_MFR_SANDISK	0x45
 #define NAND_MFR_INTEL		0x89
 #define NAND_MFR_ATO		0x9b
+#define NAND_MFR_JZ		0x5c
+#define NAND_MFR_YMTC		0xa1
+#define NAND_MFR_FMD		0xa3
+#define NAND_MFR_ESMT		0xc8
+#define NAND_MFR_GIGADEVICE	0xc8
+#define NAND_MFR_DOSILICON	0xe5
 
 /* The maximum expected count of bytes in the NAND ID sequence */
 #define NAND_MAX_ID_LEN 8
@@ -1165,6 +1171,12 @@ extern const struct nand_manufacturer_ops hynix_nand_manuf_ops;
 extern const struct nand_manufacturer_ops micron_nand_manuf_ops;
 extern const struct nand_manufacturer_ops amd_nand_manuf_ops;
 extern const struct nand_manufacturer_ops macronix_nand_manuf_ops;
+extern const struct nand_manufacturer_ops esmt_nand_manuf_ops;
+extern const struct nand_manufacturer_ops gigadevice_nand_manuf_ops;
+extern const struct nand_manufacturer_ops ymtc_nand_manuf_ops;
+extern const struct nand_manufacturer_ops dosilicon_nand_manuf_ops;
+extern const struct nand_manufacturer_ops fmd_nand_manuf_ops;
+extern const struct nand_manufacturer_ops jz_nand_manuf_ops;
 
 int nand_default_bbt(struct mtd_info *mtd);
 int nand_markbad_bbt(struct mtd_info *mtd, loff_t offs);

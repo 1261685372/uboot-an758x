@@ -37,6 +37,18 @@ Artifacts are written to `output/<target>/` / 产物位于 `output/<target>/`
 
 ## Installation / 刷入
 
+### Automatic / 自动刷机
+
+Run [AN758x-Stock2UBI](https://github.com/pbs05/an758x-stock2ubi) from the
+stock system. Back up the needed partitions, then upload `*-preloader.bin` or
+`*-firstblock.bin` together with
+`*-bl31-u-boot.fip`. The tool writes the recovery bootloader and reboots.<br>
+在原厂系统中运行 [AN758x-Stock2UBI](https://github.com/pbs05/an758x-stock2ubi)，
+备份需要保留的分区，然后上传 `*-preloader.bin` 或 `*-firstblock.bin`，以及
+`*-bl31-u-boot.fip`。工具写入恢复引导后自动重启。
+
+### Manual / 手动刷机
+
 1. Back up every MTD partition and UBI volume.<br>
    备份全部 MTD 分区和 UBI 卷。
 2. Write one BL2 image at the beginning of NAND:<br>
@@ -52,16 +64,14 @@ Artifacts are written to `output/<target>/` / 产物位于 `output/<target>/`
    `*-bl31-u-boot.fip` through XMODEM.<br>
    启动设备；BL2 请求 FIP 时按 `x`，通过 XMODEM 发送
    `*-bl31-u-boot.fip`，临时进入 U-Boot。
-4. Connect Ethernet and open `http://192.168.0.1/`.<br>
-   连接网线并打开 `http://192.168.0.1/`。
-5. For the first installation, select **Rebuild UBI / 重建 UBI**. This erases
-   every volume in the UBI partition.<br>
-   首次安装选择 **重建 UBI**，该操作会清空 UBI 分区中的全部卷。
-6. Write `*-bl31-u-boot.fip`, restore the board-data volumes, then upload the
-   sysupgrade image.<br>
-   写入 `*-bl31-u-boot.fip`，恢复板级数据卷，再上传 sysupgrade 镜像。
-7. Select **Boot system / 启动系统**.<br>
-   选择 **启动系统**。
+
+With either method, connect Ethernet and open `http://192.168.0.1/` (the first
+boot may take about one minute). For the first installation, select
+**Rebuild UBI / 重建 UBI**, then write `*-bl31-u-boot.fip`, restore the board-data
+volumes, upload the sysupgrade image, and select **Boot system / 启动系统**.<br>
+通过以上任一方法进入 U-Boot 后，连接网线并打开 `http://192.168.0.1/`（首次启动
+可能需要约一分钟）。首次安装选择 **重建 UBI**，随后写入 `*-bl31-u-boot.fip`、
+恢复板级数据卷、上传 sysupgrade 镜像，最后选择 **启动系统**。
 
 Subsequent upgrades use **Install system / 刷写系统** directly.
 

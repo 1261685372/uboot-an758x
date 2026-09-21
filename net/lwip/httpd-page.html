@@ -19,6 +19,7 @@ progress{width:100%;height:14px;accent-color:var(--blue)}#output{white-space:pre
 #state{font-weight:600}#transfer{font-variant-numeric:tabular-nums;color:var(--muted)}.status .row{justify-content:space-between}
 details{border-top:1px solid var(--line);padding-top:18px;margin-top:18px}summary{cursor:pointer;font-weight:600;margin-bottom:16px}
 hr{border:0;border-top:1px solid var(--line);margin:26px 0}[hidden]{display:none!important}@media(max-width:650px){.info{grid-template-columns:1fr 1fr}.row input{width:100%}main{padding:18px 12px}}
+footer{text-align:center;padding:12px 0 4px}footer a{color:var(--blue)}
 </style>
 </head>
 <body><main>
@@ -68,6 +69,10 @@ hr{border:0;border-top:1px solid var(--line);margin:26px 0}[hidden]{display:none
 <details><summary data-t="partitionWrite">Write partition</summary>
 <div class="stack"><select id="writeTarget" class="wide"></select><input id="partitionImage" type="file"><button id="writeButton" class="danger" data-t="uploadWrite">Upload and write</button></div>
 </details>
+<details><summary data-t="restoreAll">Restore entire Flash</summary>
+<p class="muted" data-t="restoreAllHint">Restores a main-area .bin from offset 0, including bootloader and board data. Bad-block offsets stay in place; OOB is not included. The file must fit in Flash.</p>
+<div class="row"><input id="allFlashImage" type="file" accept=".bin"><button id="allFlashButton" class="danger" data-t="uploadWrite">Upload and write</button></div>
+</details>
 <details><summary data-t="environment">Environment</summary>
 <div class="row"><input id="envName" placeholder="ipaddr"><input id="envValue" placeholder="192.168.0.1"><button id="envButton" data-t="save">Save</button></div>
 </details>
@@ -77,14 +82,15 @@ hr{border:0;border-top:1px solid var(--line);margin:26px 0}[hidden]{display:none
 </section>
 <section class="status"><div class="row"><span id="state">—</span><button id="cancel" hidden data-t="cancel">Cancel transfer</button></div>
 <progress id="progress" max="100" value="0" hidden></progress><div id="transfer"></div><pre id="output"></pre></section>
+<footer><a href="https://github.com/pbs05/uboot-an758x" target="_blank" rel="noopener noreferrer">GitHub · pbs05/uboot-an758x</a></footer>
 </main>
 <script>
 'use strict';
 const words={
-zh:{bl2Title:'刷写 BL2',ubiOperations:'UBI 操作',firstInstall:'首次刷机需要先重建 UBI。重建会清空其中的全部数据。',boardData:'板级数据',ubootTitle:'刷写 U-Boot',model:'机型',version:'版本',flash:'刷机',backup:'备份',advanced:'高级',install:'刷写系统',uploadFlash:'上传并刷写',bootSystem:'启动系统',reboot:'重启',target:'目标',download:'下载备份',ramBoot:'内存启动',uploadBoot:'上传并启动',rebuild:'重建 UBI',partitionWrite:'分区写入',uploadWrite:'上传并写入',environment:'环境变量',save:'保存',console:'命令控制台',execute:'执行',serial:'返回串口',cancel:'取消传输',idle:'就绪',upload:'上传中',downloadPhase:'下载中',queued:'等待执行',working:'正在处理',done:'完成',error:'操作失败',erase:'擦除中',create:'创建卷',ready:'上传完成','backup-ready':'备份已就绪',verify:'校验中',write:'写入中',waiting:'等待设备响应',busy:'设备正在处理其他操作',choose:'请选择文件',failed:'请求失败',cancelled:'传输已取消',whole:'整片 Flash',mtdHint:'MTD 备份为物理主数据，坏块填充 FF；NAND OOB 不包含在文件中。',volumeHint:'UBI 卷数据',taskChanged:'设备任务已变化，请刷新页面',network:'连接中断，请检查设备状态'},
-en:{bl2Title:'Flash BL2',ubiOperations:'UBI operations',firstInstall:'For the first installation, rebuild UBI first. Rebuilding erases all data in UBI.',boardData:'Board data',ubootTitle:'Flash U-Boot',model:'Model',version:'Version',flash:'Flash',backup:'Backup',advanced:'Advanced',install:'Install system',uploadFlash:'Upload and flash',bootSystem:'Boot system',reboot:'Reboot',target:'Target',download:'Download backup',ramBoot:'RAM boot',uploadBoot:'Upload and boot',rebuild:'Rebuild UBI',partitionWrite:'Write partition',uploadWrite:'Upload and write',environment:'Environment',save:'Save',console:'Command console',execute:'Run',serial:'Return to serial',cancel:'Cancel transfer',idle:'Ready',upload:'Uploading',downloadPhase:'Downloading',queued:'Queued',working:'Working',done:'Complete',error:'Operation failed',erase:'Erasing',create:'Creating volumes',ready:'Upload complete','backup-ready':'Backup ready',verify:'Verifying',write:'Writing',waiting:'Waiting for device',busy:'Device is busy',choose:'Select a file',failed:'Request failed',cancelled:'Transfer cancelled',whole:'Entire Flash',mtdHint:'MTD backup contains physical main-area data with bad blocks padded with FF. NAND OOB is excluded.',volumeHint:'UBI volume data',taskChanged:'Device task changed; refresh the page',network:'Connection lost; check device status'}
+zh:{bl2Title:'刷写 BL2',ubiOperations:'UBI 操作',firstInstall:'首次刷机需要先重建 UBI。重建会清空其中的全部数据。',boardData:'板级数据',ubootTitle:'刷写 U-Boot',model:'机型',version:'版本',flash:'刷机',backup:'备份',advanced:'高级',install:'刷写系统',uploadFlash:'上传并刷写',bootSystem:'启动系统',reboot:'重启',target:'目标',download:'下载备份',ramBoot:'内存启动',uploadBoot:'上传并启动',rebuild:'重建 UBI',partitionWrite:'分区写入',restoreAll:'恢复整片 Flash',restoreAllHint:'从 Flash 开头恢复主数据 .bin，包含引导程序和板级数据。坏块保留原偏移，不包含 OOB。文件不能超过 Flash 容量。',flashTooLarge:'文件超过 Flash 容量',uploadWrite:'上传并写入',environment:'环境变量',save:'保存',console:'命令控制台',execute:'执行',serial:'返回串口',cancel:'取消传输',idle:'就绪',upload:'上传中',downloadPhase:'下载中',queued:'等待执行',working:'正在处理',done:'完成',error:'操作失败',erase:'擦除中',create:'创建卷',ready:'上传完成','backup-ready':'备份已就绪',verify:'校验中',write:'写入中',waiting:'等待设备响应',busy:'设备正在处理其他操作',choose:'请选择文件',failed:'请求失败',cancelled:'传输已取消',whole:'整片 Flash',mtdHint:'MTD 备份为物理主数据，坏块填充 FF；NAND OOB 不包含在文件中。',volumeHint:'UBI 卷数据',taskChanged:'设备任务已变化，请刷新页面',network:'连接中断，请检查设备状态'},
+en:{bl2Title:'Flash BL2',ubiOperations:'UBI operations',firstInstall:'For the first installation, rebuild UBI first. Rebuilding erases all data in UBI.',boardData:'Board data',ubootTitle:'Flash U-Boot',model:'Model',version:'Version',flash:'Flash',backup:'Backup',advanced:'Advanced',install:'Install system',uploadFlash:'Upload and flash',bootSystem:'Boot system',reboot:'Reboot',target:'Target',download:'Download backup',ramBoot:'RAM boot',uploadBoot:'Upload and boot',rebuild:'Rebuild UBI',partitionWrite:'Write partition',restoreAll:'Restore entire Flash',restoreAllHint:'Restores a main-area .bin from offset 0, including bootloader and board data. Bad-block offsets stay in place; OOB is not included. The file must fit in Flash.',flashTooLarge:'File exceeds Flash capacity',uploadWrite:'Upload and write',environment:'Environment',save:'Save',console:'Command console',execute:'Run',serial:'Return to serial',cancel:'Cancel transfer',idle:'Ready',upload:'Uploading',downloadPhase:'Downloading',queued:'Queued',working:'Working',done:'Complete',error:'Operation failed',erase:'Erasing',create:'Creating volumes',ready:'Upload complete','backup-ready':'Backup ready',verify:'Verifying',write:'Writing',waiting:'Waiting for device',busy:'Device is busy',choose:'Select a file',failed:'Request failed',cancelled:'Transfer cancelled',whole:'Entire Flash',mtdHint:'MTD backup contains physical main-area data with bad blocks padded with FF. NAND OOB is excluded.',volumeHint:'UBI volume data',taskChanged:'Device task changed; refresh the page',network:'Connection lost; check device status'}
 };
-let language=(navigator.language||'').toLowerCase().startsWith('zh')?'zh':'en', localBusy=false, remoteBusy=true, activeXHR=null, targets=[], selectedTab='flash', rebooting=false;
+let language=(navigator.language||'').toLowerCase().startsWith('zh')?'zh':'en', localBusy=false, remoteBusy=true, activeXHR=null, targets=[], flashBytes=0, selectedTab='flash', rebooting=false;
 const el=id=>document.getElementById(id), t=key=>words[language][key]||key, text=(id,value)=>{el(id).textContent=value};
 function applyLanguage(){
  document.documentElement.lang=language==='zh'?'zh-CN':'en';
@@ -134,6 +140,7 @@ async function request(url,options){
 async function refresh(){
  const [d,s]=await Promise.all([request('/api/device'),request('/api/storage')]);targets=s.targets||[];
  text('model',d.model);text('memory',bytes(d.ram_bytes)+' / '+bytes(d.flash_bytes));text('version',d.version);
+ flashBytes=d.flash_bytes;
  const hasBl2=targets.some(v=>v.kind==='mtd'&&v.name==='bl2');
  el('bl2Section').hidden=!hasBl2;el('ubiSection').hidden=!d.ubi;
  el('bootDivider').hidden=!(hasBl2&&d.ubi);el('ubiManagement').hidden=!d.rebuild;
@@ -174,10 +181,10 @@ function transfer(url,body,responseType,progressBase=0,progressTotal=0){
   xhr.send(body||null);
  });
 }
-async function uploadFile(input){
+async function uploadFile(input,url='/api/upload'){
  const file=input.files[0];if(!file)throw new Error(t('choose'));
  text('state',t('upload'));
- const s=await transfer('/api/upload',file,'json');
+ const s=await transfer(url,file,'json');
  return s.upload_id;
 }
 async function upload(id){return uploadFile(el(id))}
@@ -209,6 +216,11 @@ el('bootButton').onclick=()=>run(async()=>{const id=await upload('initramfs');re
 el('writeButton').onclick=()=>run(async()=>{
  const v=targets[Number(el('writeTarget').value)];if(!v)throw new Error(t('failed'));
  await task({operation:'write',kind:v.kind,target:v.name,upload_id:await upload('partitionImage')});
+});
+el('allFlashButton').onclick=()=>run(async()=>{
+ const file=el('allFlashImage').files[0];if(!file)throw new Error(t('choose'));
+ if(file.size>flashBytes)throw new Error(t('flashTooLarge'));
+ await task({operation:'flash-all',upload_id:await uploadFile(el('allFlashImage'),'/api/upload-all-flash')});
 });
 el('rebuildButton').onclick=()=>run(async()=>{
  await task({operation:'ubi-rebuild'});

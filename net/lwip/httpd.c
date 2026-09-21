@@ -12,6 +12,7 @@
 #include <env.h>
 #include <image.h>
 #include <led.h>
+#include <lmb.h>
 #include <mapmem.h>
 #include <mtd.h>
 #include <u-boot/crc.h>
@@ -52,6 +53,7 @@ DECLARE_GLOBAL_DATA_PTR;
 enum http_post_kind {
 	HTTP_POST_NONE,
 	HTTP_POST_UPLOAD,
+	HTTP_POST_FLASH_ALL_UPLOAD,
 	HTTP_POST_TASK,
 };
 
@@ -66,6 +68,7 @@ enum http_job_kind {
 	HTTP_JOB_BL2,
 	HTTP_JOB_FIP,
 	HTTP_JOB_BOARD_DATA,
+	HTTP_JOB_FLASH_ALL,
 };
 
 enum http_storage_kind {
@@ -123,6 +126,9 @@ static bool stop_requested;
 static u32 upload_id, task_id;
 static ulong buffer_addr;
 static size_t buffer_size;
+static phys_addr_t flash_all_alloc_addr;
+static size_t flash_all_alloc_size;
+static bool flash_all_upload_ready;
 static unsigned int downloads, replies;
 static bool backup_ready;
 static ulong backup_at;
@@ -168,6 +174,9 @@ static int run_ubi_rebuild(void);
 static int run_board_data_update(void);
 static int open_download(struct fs_file *file, const char *name);
 static bool upload_region_valid(ulong addr, size_t len);
+static bool mtd_uses_pages(const struct mtd_info *mtd);
+static struct mtd_info *whole_flash_mtd(void);
+static void release_flash_all_upload(void);
 static bool recovery_layout_present(void);
 static int board_data_config(unsigned int index,
 			     struct http_storage_request *request);
@@ -504,6 +513,31 @@ static int open_download(struct fs_file *file, const char *name)
 	return 1;
 }
 
+static struct mtd_info *whole_flash_mtd(void)
+{
+	struct mtd_info *mtd, *whole = NULL;
+
+	mtd_probe_devices();
+	mtd_for_each_device(mtd) {
+		if (!mtd_is_partition(mtd) && mtd_uses_pages(mtd) &&
+		    (!whole || mtd->size > whole->size))
+			whole = mtd;
+	}
+
+	return whole ? get_mtd_device_nm(whole->name) : ERR_PTR(-ENODEV);
+}
+
+static void release_flash_all_upload(void)
+{
+	if (flash_all_alloc_size && buffer_addr == flash_all_alloc_addr)
+		buffer_size = 0;
+	if (flash_all_alloc_size)
+		lmb_free(flash_all_alloc_addr, flash_all_alloc_size, LMB_NONE);
+	flash_all_alloc_addr = 0;
+	flash_all_alloc_size = 0;
+	flash_all_upload_ready = false;
+}
+
 static bool upload_region_valid(ulong addr, size_t len)
 {
 	phys_addr_t ram_end = gd->ram_base + gd->ram_size;
@@ -520,6 +554,8 @@ err_t httpd_post_begin(void *connection, const char *uri,
 		       u16_t response_uri_len, u8_t *post_auto_wnd)
 {
 	ulong addr = env_get_ulong("loadaddr", 16, CONFIG_SYS_LOAD_ADDR);
+	struct mtd_info *mtd;
+	phys_addr_t allocated, safe_end;
 
 	if (http_busy()) {
 		strlcpy(response_uri, "/api/busy", response_uri_len);
@@ -527,10 +563,38 @@ err_t httpd_post_begin(void *connection, const char *uri,
 	}
 	if (content_len <= 0)
 		goto reject;
-	if (!strcmp(uri, "/api/upload")) {
-		if (!upload_region_valid(addr, content_len))
-			goto reject;
-		post_state.kind = HTTP_POST_UPLOAD;
+	if (!strcmp(uri, "/api/upload") ||
+	    !strcmp(uri, "/api/upload-all-flash")) {
+		release_flash_all_upload();
+		if (!strcmp(uri, "/api/upload-all-flash")) {
+			mtd = whole_flash_mtd();
+			if (IS_ERR(mtd))
+				goto reject;
+			if (content_len > mtd->size) {
+				put_mtd_device(mtd);
+				goto reject;
+			}
+			put_mtd_device(mtd);
+			safe_end = min_t(phys_addr_t, gd->ram_base + gd->ram_size,
+					 gd->start_addr_sp);
+			allocated = safe_end;
+			/* LMB excludes the running bootloader, stack and reserved DRAM. */
+			if (lmb_alloc_mem(LMB_MEM_ALLOC_MAX, 4096, &allocated,
+					  content_len, LMB_NONE))
+				goto reject;
+			if (!upload_region_valid(allocated, content_len)) {
+				lmb_free(allocated, content_len, LMB_NONE);
+				goto reject;
+			}
+			addr = allocated;
+			flash_all_alloc_addr = allocated;
+			flash_all_alloc_size = content_len;
+			post_state.kind = HTTP_POST_FLASH_ALL_UPLOAD;
+		} else {
+			if (!upload_region_valid(addr, content_len))
+				goto reject;
+			post_state.kind = HTTP_POST_UPLOAD;
+		}
 		buffer_size = 0;
 		env_set_hex("filesize", 0);
 		phase = "upload";
@@ -564,7 +628,8 @@ err_t httpd_post_receive_data(void *connection, struct pbuf *p)
 		pbuf_free(p);
 		return ERR_ARG;
 	}
-	if (post_state.kind == HTTP_POST_UPLOAD) {
+	if (post_state.kind == HTTP_POST_UPLOAD ||
+	    post_state.kind == HTTP_POST_FLASH_ALL_UPLOAD) {
 		void *dst = map_sysmem(post_state.load_addr + post_state.received, len);
 
 		pbuf_copy_partial(p, dst, len, 0);
@@ -586,16 +651,21 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
 		return;
 	}
 	if (!post_state.failed && post_state.received == post_state.expected) {
-		if (post_state.kind == HTTP_POST_UPLOAD) {
+		if (post_state.kind == HTTP_POST_UPLOAD ||
+		    post_state.kind == HTTP_POST_FLASH_ALL_UPLOAD) {
 			job_result = 0;
 			job_state = HTTP_JOB_IDLE;
 			output_len = 0;
 			output_buf[0] = 0;
 			buffer_addr = post_state.load_addr;
 			buffer_size = post_state.received;
+			flash_all_upload_ready =
+				post_state.kind == HTTP_POST_FLASH_ALL_UPLOAD;
 			upload_id++;
-			env_set_hex("fileaddr", buffer_addr);
-			env_set_hex("filesize", buffer_size);
+			if (!flash_all_upload_ready) {
+				env_set_hex("fileaddr", buffer_addr);
+				env_set_hex("filesize", buffer_size);
+			}
 			phase = "ready";
 			ret = 0;
 		} else {
@@ -611,6 +681,8 @@ void httpd_post_finished(void *connection, char *response_uri, u16_t response_ur
 			}
 		}
 	}
+	if (ret && post_state.kind == HTTP_POST_FLASH_ALL_UPLOAD)
+		release_flash_all_upload();
 	strlcpy(response_uri, ret ? "/api/error" : "/api/reply", response_uri_len);
 	memset(&post_state, 0, sizeof(post_state));
 }
@@ -739,17 +811,28 @@ static int parse_task(void)
 	    json_text(&r, "operation", op, sizeof(op)) ||
 	    json_uint(&r, "upload_id", &id))
 		return -EINVAL;
+	if (flash_all_upload_ready && strcmp(op, "flash-all"))
+		return -EBUSY;
 	memset(&storage_request, 0, sizeof(storage_request));
-	if (!strcmp(op, "flash") || !strcmp(op, "write") ||
+	if (!strcmp(op, "flash") || !strcmp(op, "flash-all") ||
+	    !strcmp(op, "write") ||
 	    !strcmp(op, "boot-upload") || !strcmp(op, "flash-bl2") ||
 	    !strcmp(op, "flash-uboot") || !strcmp(op, "flash-board-data")) {
 		if (!buffer_size || id != upload_id)
 			return -EINVAL;
-		env_set_hex("loadaddr", buffer_addr);
-		env_set_hex("filesize", buffer_size);
+		if (strcmp(op, "flash-all")) {
+			env_set_hex("loadaddr", buffer_addr);
+			env_set_hex("filesize", buffer_size);
+		}
 	}
 	if (!strcmp(op, "flash")) {
 		job_kind = HTTP_JOB_FIRMWARE;
+	} else if (!strcmp(op, "flash-all")) {
+		if (!flash_all_upload_ready ||
+		    buffer_addr != flash_all_alloc_addr ||
+		    buffer_size != flash_all_alloc_size)
+			return -EINVAL;
+		job_kind = HTTP_JOB_FLASH_ALL;
 	} else if (!strcmp(op, "flash-bl2")) {
 		job_kind = HTTP_JOB_BL2;
 	} else if (!strcmp(op, "flash-uboot")) {
@@ -890,6 +973,99 @@ static int storage_mtd_erase(struct mtd_info *mtd, u64 offset, size_t size)
 	}
 
 	return 0;
+}
+
+static int run_flash_all(void)
+{
+	struct mtd_info *mtd;
+	const u8 *uploaded;
+	u8 *block = NULL, *verify = NULL;
+	size_t offset = 0, chunk, written;
+	unsigned int skipped = 0;
+	int ret = -EINVAL;
+
+	if (!flash_all_upload_ready || !buffer_size ||
+	    buffer_addr != flash_all_alloc_addr ||
+	    buffer_size != flash_all_alloc_size ||
+	    !upload_region_valid(buffer_addr, buffer_size))
+		return CMD_RET_FAILURE;
+
+	mtd = whole_flash_mtd();
+	if (IS_ERR(mtd))
+		return CMD_RET_FAILURE;
+	if (!mtd->erasesize || !mtd->writesize ||
+	    mtd->erasesize % mtd->writesize ||
+	    mtd->size % mtd->erasesize || buffer_size > mtd->size) {
+		puts("Whole Flash image exceeds the NAND geometry.\n");
+		goto out_put_mtd;
+	}
+
+	block = malloc_cache_aligned(mtd->erasesize);
+	verify = malloc_cache_aligned(mtd->erasesize);
+	if (!block || !verify) {
+		ret = -ENOMEM;
+		goto out_put_mtd;
+	}
+	uploaded = map_sysmem(buffer_addr, buffer_size);
+	if (CONFIG_IS_ENABLED(CMD_UBI) && ubi_devices[0]) {
+		ret = ubi_detach();
+		if (ret)
+			goto out_unmap;
+	}
+
+	/* Physical offsets match whole-chip backups, including bad-block gaps. */
+	for (offset = 0; offset < buffer_size; offset += mtd->erasesize) {
+		struct erase_info erase = {
+			.mtd = mtd,
+			.addr = offset,
+			.len = mtd->erasesize,
+		};
+
+		ret = mtd_block_isbad(mtd, offset);
+		if (ret < 0)
+			goto out_unmap;
+		if (ret > 0) {
+			skipped++;
+			service_network();
+			continue;
+		}
+
+		chunk = min_t(size_t, mtd->erasesize, buffer_size - offset);
+		memset(block, 0xff, mtd->erasesize);
+		memcpy(block, uploaded + offset, chunk);
+		phase = "erase";
+		ret = mtd_erase(mtd, &erase);
+		if (ret)
+			goto out_unmap;
+		phase = "write";
+		ret = mtd_write(mtd, offset, mtd->erasesize, &written, block);
+		if (ret || written != mtd->erasesize) {
+			ret = ret ? ret : -EIO;
+			goto out_unmap;
+		}
+		phase = "verify";
+		ret = mtd_read(mtd, offset, mtd->erasesize, &written, verify);
+		if (ret == -EUCLEAN && written == mtd->erasesize)
+			ret = 0;
+		if (ret || written != mtd->erasesize ||
+		    memcmp(block, verify, mtd->erasesize)) {
+			ret = ret ? ret : -EIO;
+			goto out_unmap;
+		}
+		service_network();
+	}
+	printf("Restored %zu bytes from offset 0; skipped %u bad blocks.\n",
+	       buffer_size, skipped);
+	ret = 0;
+out_unmap:
+	if (ret)
+		printf("Whole Flash restore failed at 0x%zx (%d).\n", offset, ret);
+	unmap_sysmem(uploaded);
+out_put_mtd:
+	free(verify);
+	free(block);
+	put_mtd_device(mtd);
+	return ret ? CMD_RET_FAILURE : CMD_RET_SUCCESS;
 }
 
 static int run_storage_job(void)
@@ -1487,6 +1663,9 @@ static int run_captured_job(void)
 	case HTTP_JOB_FIRMWARE:
 		ret = run_firmware_update();
 		break;
+	case HTTP_JOB_FLASH_ALL:
+		ret = run_flash_all();
+		break;
 	case HTTP_JOB_STORAGE:
 		ret = run_storage_job();
 		break;
@@ -1531,6 +1710,8 @@ static void process_job(void)
 	job_state = HTTP_JOB_RUNNING;
 	phase = "working";
 	job_result = run_captured_job();
+	if (job_kind == HTTP_JOB_FLASH_ALL)
+		release_flash_all_upload();
 
 	if (job_kind == HTTP_JOB_ACTION && job_result && !output_len) {
 		snprintf(output_buf, sizeof(output_buf),

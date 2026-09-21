@@ -206,6 +206,11 @@ struct nand_manufacturer nand_manuf_ids[] = {
 	{NAND_MFR_SANDISK, "SanDisk"},
 	{NAND_MFR_INTEL, "Intel"},
 	{NAND_MFR_ATO, "ATO"},
+	{NAND_MFR_ESMT, "ESMT", &esmt_nand_manuf_ops},
+	{NAND_MFR_DOSILICON, "Dosilicon", &dosilicon_nand_manuf_ops},
+	{NAND_MFR_YMTC, "YMTC", &ymtc_nand_manuf_ops},
+	{NAND_MFR_FMD, "FMD", &fmd_nand_manuf_ops},
+	{NAND_MFR_JZ, "JZ", &jz_nand_manuf_ops},
 	{0x0, "Unknown"}
 };
 

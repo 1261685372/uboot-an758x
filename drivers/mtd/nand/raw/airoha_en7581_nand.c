@@ -1381,7 +1381,7 @@ static int airoha_nfc_block_bad(struct mtd_info *mtd, loff_t ofs)
 	struct nand_chip *nand = mtd_to_nand(mtd);
 	struct mtd_oob_ops ops;
 	int ret, i = 0;
-	u16 bad;
+	u16 bad = 0xffff;
 
 	memset(&ops, 0, sizeof(ops));
 	ops.oobbuf = (uint8_t *)&bad;
@@ -1403,9 +1403,9 @@ static int airoha_nfc_block_bad(struct mtd_info *mtd, loff_t ofs)
 			return ret;
 
 		if (likely(nand->badblockbits == 8))
-			ret = bad != 0xFF;
+			ret = (u8)bad != 0xFF;
 		else
-			ret = hweight8(bad) < nand->badblockbits;
+			ret = hweight8((u8)bad) < nand->badblockbits;
 
 		i++;
 		ofs += mtd->writesize;

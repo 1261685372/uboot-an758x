@@ -36,10 +36,18 @@ struct nand_flash_dev nand_flash_ids[] = {
 		{ .id = {0x98, 0xda, 0x90, 0x15, 0x76} },
 		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128,
 		  NAND_ECC_INFO(8, SZ_512), 0 },
+	{"W29N02GV 2G 3.3V 8-bit",
+		{ .id = {0xef, 0xda, 0x90, 0x95, 0x04} },
+		  SZ_2K, SZ_256, SZ_128K, 0, 5, 64,
+		  NAND_ECC_INFO(1, SZ_512), 0 },
+	{"W29N02KVSIAE 2G 3.3V 8-bit",
+		{ .id = {0xef, 0xda, 0x10, 0x95, 0x07} },
+		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128,
+		  NAND_ECC_INFO(8, SZ_512), 0 },
 	{"W29N02KVSIAF 2G 3.3V 8-bit",
 		{ .id = {0xef, 0xda, 0x10, 0x95, 0x06} },
 		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128,
-		  NAND_ECC_INFO(8, SZ_512), 0 },
+		  NAND_ECC_INFO(4, SZ_512), 0 },
 	{"S34ML02G300TFI00 2G 3.3V 8-bit",
 		{ .id = {0x01, 0xda, 0x00, 0x95, 0x46} },
 		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128,
@@ -211,6 +219,7 @@ struct nand_manufacturer nand_manuf_ids[] = {
 	{NAND_MFR_YMTC, "YMTC", &ymtc_nand_manuf_ops},
 	{NAND_MFR_FMD, "FMD", &fmd_nand_manuf_ops},
 	{NAND_MFR_JZ, "JZ", &jz_nand_manuf_ops},
+	{NAND_MFR_WINBOND, "Winbond"},
 	{0x0, "Unknown"}
 };
 

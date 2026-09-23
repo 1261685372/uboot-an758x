@@ -1462,6 +1462,9 @@ static int airoha_nfc_init_chip(struct airoha_nfc *nfc)
 	printf("EN7581 parallel NAND: ID %02x:%02x, page %u, OOB %u, erase %u\n",
 	       nand->id.data[0], nand->id.data[1], mtd->writesize,
 	       mtd->oobsize, mtd->erasesize);
+	printf("EN7581 parallel NAND: onfi_ver=%d ecc_strength_ds=%u onfi_ecc_bits=%u\n",
+	       nand->onfi_version, nand->ecc_strength_ds,
+	       nand->onfi_params.ecc_bits);
 
 	ret = airoha_nfc_attach_chip(nand);
 	if (ret) {

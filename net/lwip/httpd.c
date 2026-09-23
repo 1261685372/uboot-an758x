@@ -15,7 +15,6 @@
 #include <lmb.h>
 #include <mapmem.h>
 #include <mtd.h>
-#include <nand.h>
 #include <u-boot/crc.h>
 #include <ubi_uboot.h>
 #include <net.h>
@@ -1606,26 +1605,38 @@ out:
 static int run_nand_scrub(void)
 {
 	struct mtd_info *mtd;
-	nand_erase_options_t opts;
+	struct erase_info erase;
+	u64 addr;
 	int ret;
 
 	mtd = whole_flash_mtd();
 	if (IS_ERR(mtd))
 		return PTR_ERR(mtd);
 
-	memset(&opts, 0, sizeof(opts));
-	opts.offset = 0;
-	opts.length = mtd->size;
-	opts.scrub = 1;
-	opts.quiet = 0;
-
 	phase = "erase";
 	printf("NAND scrub: clearing bad block markers on %s (%llu bytes)\n",
 	       mtd->name, (unsigned long long)mtd->size);
 
-	ret = nand_erase_opts(mtd, &opts);
-	put_mtd_device(mtd);
+	memset(&erase, 0, sizeof(erase));
+	erase.mtd = mtd;
+	erase.len = mtd->erasesize;
 
+	for (addr = 0; addr < mtd->size; addr += mtd->erasesize) {
+		erase.addr = addr;
+		ret = mtd_block_isbad(mtd, addr);
+		if (ret > 0)
+			printf("Scrubbing bad block at 0x%llx.\n", addr);
+		else if (ret < 0)
+			goto out;
+
+		ret = mtd_erase(mtd, &erase);
+		if (ret)
+			goto out;
+		service_network();
+	}
+
+out:
+	put_mtd_device(mtd);
 	return ret;
 }
 

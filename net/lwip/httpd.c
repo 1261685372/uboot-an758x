@@ -1620,6 +1620,7 @@ static int run_nand_scrub(void)
 	memset(&erase, 0, sizeof(erase));
 	erase.mtd = mtd;
 	erase.len = mtd->erasesize;
+	erase.scrub = 1;
 
 	for (addr = 0; addr < mtd->size; addr += mtd->erasesize) {
 		erase.addr = addr;

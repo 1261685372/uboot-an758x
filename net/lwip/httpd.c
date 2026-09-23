@@ -15,6 +15,7 @@
 #include <lmb.h>
 #include <mapmem.h>
 #include <mtd.h>
+#include <nand.h>
 #include <u-boot/crc.h>
 #include <ubi_uboot.h>
 #include <net.h>
@@ -69,6 +70,7 @@ enum http_job_kind {
 	HTTP_JOB_FIP,
 	HTTP_JOB_BOARD_DATA,
 	HTTP_JOB_FLASH_ALL,
+	HTTP_JOB_NAND_SCRUB,
 };
 
 enum http_storage_kind {
@@ -171,6 +173,7 @@ static void service_network(void)
 
 static int parse_task(void);
 static int run_ubi_rebuild(void);
+static int run_nand_scrub(void);
 static int run_board_data_update(void);
 static int open_download(struct fs_file *file, const char *name);
 static bool upload_region_valid(ulong addr, size_t len);
@@ -846,6 +849,8 @@ static int parse_task(void)
 	} else if (!strcmp(op, "ubi-rebuild")) {
 		if (!recovery_layout_present()) return -EINVAL;
 		job_kind = HTTP_JOB_REBUILD;
+	} else if (!strcmp(op, "nand-scrub")) {
+		job_kind = HTTP_JOB_NAND_SCRUB;
 	} else if (!strcmp(op, "command")) {
 		if (json_text(&r, "command", command_buf, sizeof(command_buf)) || !command_buf[0])
 			return -EINVAL;
@@ -1598,6 +1603,32 @@ out:
 	return ret;
 }
 
+static int run_nand_scrub(void)
+{
+	struct mtd_info *mtd;
+	nand_erase_options_t opts;
+	int ret;
+
+	mtd = whole_flash_mtd();
+	if (IS_ERR(mtd))
+		return PTR_ERR(mtd);
+
+	memset(&opts, 0, sizeof(opts));
+	opts.offset = 0;
+	opts.length = mtd->size;
+	opts.scrub = 1;
+	opts.quiet = 0;
+
+	phase = "erase";
+	printf("NAND scrub: clearing bad block markers on %s (%llu bytes)\n",
+	       mtd->name, (unsigned long long)mtd->size);
+
+	ret = nand_erase_opts(mtd, &opts);
+	put_mtd_device(mtd);
+
+	return ret;
+}
+
 static int run_board_data_update(void)
 {
 	int ret;
@@ -1665,6 +1696,9 @@ static int run_captured_job(void)
 		break;
 	case HTTP_JOB_FLASH_ALL:
 		ret = run_flash_all();
+		break;
+	case HTTP_JOB_NAND_SCRUB:
+		ret = run_nand_scrub();
 		break;
 	case HTTP_JOB_STORAGE:
 		ret = run_storage_job();

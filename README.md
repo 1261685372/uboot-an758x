@@ -16,6 +16,7 @@ Hold Reset about one second after power-on to enter Web recovery.
 | `hg5585f-ct` | FiberHome HG5585F CT | AN7581 | Parallel NAND |
 | `hg5585f-cu` | FiberHome HG5585F CU | AN7581 | Parallel NAND |
 | `xg2010g` | Gemtek XG2010G | AN7581 | SPI NAND |
+| `xr1710g` | Brightspeed/Gemtek XR1710G | AN7581 | SPI NAND |
 | `zn504xg-d` | ZNXT ZN504XG-D | AN7581 | SPI NAND |
 | `zn515xg-d` | ZNXT ZN515XG-D | AN7581 | SPI NAND |
 | `ung00a` | UnionMan UNG00A | AN7581 | SPI NAND |

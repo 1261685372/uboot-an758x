@@ -5,7 +5,7 @@ set -eu
 usage()
 {
 	cat >&2 <<'EOF'
-usage: build-an758x.sh <hg5382a|hg5585f-ct|hg5585f-cu|xg2010g|zn504xg-d|zn515xg-d|ung00a|xg-040g-md|xg-040g-tf|xg-040g-mf>
+usage: build-an758x.sh <hg5382a|hg5585f-ct|hg5585f-cu|xg2010g|xr1710g|zn504xg-d|zn515xg-d|ung00a|xg-040g-md|xg-040g-tf|xg-040g-mf>
 
 Required environment:
   CROSS_COMPILE         AArch64 toolchain prefix
@@ -63,6 +63,12 @@ hg5585f-cu)
 xg2010g)
 	defconfig=an7581_gemtek_xg2010g_defconfig
 	artifact_prefix=an7581-gemtek-xg2010g
+	soc=EN7581
+	parallel_nand=0
+	;;
+xr1710g)
+	defconfig=an7581_gemtek_xr1710g_defconfig
+	artifact_prefix=an7581-gemtek-xr1710g
 	soc=EN7581
 	parallel_nand=0
 	;;

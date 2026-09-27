@@ -19,6 +19,7 @@ jobs:
           - hg5585f-ct
           - hg5585f-cu
           - xg2010g
+          - xr1710g
           - zn504xg-d
           - zn515xg-d
           - ung00a
